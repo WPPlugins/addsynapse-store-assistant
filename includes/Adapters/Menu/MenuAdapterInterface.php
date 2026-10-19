@@ -1,0 +1,67 @@
+<?php
+/**
+ * Menu storage adapter (classic nav menus / block navigation).
+ *
+ * @package Addsynapse\StoreAssistant
+ */
+
+namespace Addsynapse\StoreAssistant\Adapters\Menu;
+
+defined( 'ABSPATH' ) || exit;
+
+/**
+ * Every adapter speaks the same normalized SNAPSHOT of one menu.
+ *
+ * Keys:
+ *   adapter   'classic' | 'block'
+ *   exists    bool (false = the menu does not exist: "before" of create_menu, or undo target)
+ *   menu      {id, name, slug}
+ *   items     flat depth-first list of {id, label, title, type, object, object_id, url, parent,
+ *             order, link, extra} — id int (store) or "new:N" (planned); parent 0 = top level
+ *   locations {slug: "self" | menu id | 0}  (classic only; "self" = this menu)
+ *   raw       block adapter only: the exact stored post_content (exact undo)
+ *
+ * Adapters never decide WHAT changes: the planner builds the target snapshot, the changeset
+ * engine checks conflicts with same() and calls write() only after the manager's approval.
+ */
+interface MenuAdapterInterface {
+
+	/**
+	 * 'classic' | 'block'.
+	 */
+	public function kind(): string;
+
+	/**
+	 * Whether theme locations can be assigned.
+	 */
+	public function supports_locations(): bool;
+
+	/**
+	 * Registered locations: [{slug, label, menu_id, menu_name}].
+	 *
+	 * @return array<int,array<string,mixed>>
+	 */
+	public function locations(): array;
+
+	/**
+	 * Menus: [{id, name, slug, count}].
+	 *
+	 * @return array<int,array<string,mixed>>
+	 */
+	public function menus(): array;
+
+	/**
+	 * Menu id by id / slug / name (accent- and case-insensitive), or null.
+	 *
+	 * @param string $ref Reference.
+	 */
+	public function find( string $ref ): ?int;
+
+	/**
+	 * Current snapshot of a menu (exists=false when it is gone).
+	 *
+	 * @param int $menu_id Menu id.
+	 * @return array<string,mixed>
+	 */
+	public function read( int $menu_id ): array;
+}

@@ -1,0 +1,162 @@
+/* AddSynapse Store Assistant — server-rendered screens (Settings, approval page, AddSynapse Overview). No inline styles. */
+/* Approval screen */
+.aiops-approve__card{background:#fff;border:1px solid #c3c4c7;border-radius:4px;padding:12px 16px;margin:16px 0;max-width:1100px}
+.aiops-approve__card h2{margin:.2em 0 .4em}
+.aiops-approve__meta{color:#50575e;margin-top:0}
+.aiops-approve__changes td{word-break:break-word;vertical-align:top}
+.aiops-approve__changes td:nth-child(3){color:#8a2424}
+.aiops-approve__changes td:nth-child(4){color:#006908}
+.aiops-approve__actions .button{margin-right:6px}
+/* Settings → addsynapse */
+.aiops-connector__status{max-width:760px}
+.aiops-connector__actions{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
+.aiops-connector__actions form{margin:0}
+
+/* One-click connect (2026-09-26): one line + one button, manual setup under «Advanced». */
+.aiops-connector__card {
+	max-width: 760px;
+	margin: 16px 0;
+	padding: 16px 20px;
+	background: #fff;
+	border: 1px solid #dcdcde;
+	border-radius: 8px;
+}
+
+.aiops-connector__line {
+	margin: 0 0 12px;
+	font-size: 15px;
+	font-weight: 600;
+}
+
+.aiops-connector__advanced {
+	max-width: 760px;
+	margin-top: 24px;
+}
+
+.aiops-connector__advanced > summary {
+	cursor: pointer;
+	font-weight: 600;
+}
+
+/* Approval mode (2026-09-28): approve in wp-admin (default) or in the addsynapse portal. */
+.aiops-connector__approvals fieldset p {
+	margin: 0 0 10px;
+}
+
+.aiops-connector__approvals .aiops-connector__warning {
+	margin: 8px 0 12px;
+}
+
+.aiops-connector__log {
+	margin: 0;
+	color: #50575e;
+}
+
+/* Settings: widths/spacing (were inline styles). */
+.aiops-settings-table{max-width:760px}
+.aiops-settings-table--narrow{max-width:640px}
+.aiops-settings-table--wide{max-width:960px}
+.aiops-settings-note{max-width:720px}
+.aiops-settings-missing{color:#b32d2e}
+.aiops-settings-inline-form{margin:0}
+.aiops-plan-groups{margin:6px 0 0}
+.aiops-consent{max-width:760px;color:#3c434a}
+.aiops-consent ul{list-style:disc;margin:6px 0 6px 20px}
+.aiops-trial{margin:4px 0 12px}
+.aiops-trial__link.button-link{font-size:13px}
+.aiops-connector__choices{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-start;margin:12px 0}
+.aiops-connector__choices form{margin:0}
+
+/* AddSynapse → Overview (shared menu renderer, docs/ADMIN-MENU.md of supremesearch). */
+.addsynapse-overview .addsynapse-overview-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:8px 0 4px}
+.addsynapse-overview .addsynapse-overview-head h1{margin:0;padding:0}
+.addsynapse-overview .addsynapse-overview-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;margin-top:16px;max-width:1100px}
+.addsynapse-overview .addsynapse-card{background:#fff;border:1px solid #c3c4c7;border-radius:4px;padding:16px;display:flex;flex-direction:column;gap:8px}
+.addsynapse-overview .addsynapse-card-top{display:flex;align-items:center;gap:10px}
+.addsynapse-overview .addsynapse-card-icon{width:32px;height:32px;flex:0 0 32px;font-size:32px;line-height:32px}
+.addsynapse-overview .addsynapse-card h2{margin:0;font-size:15px}
+.addsynapse-overview .addsynapse-card-version{color:#646970;font-size:12px}
+.addsynapse-overview .addsynapse-card p{margin:0;color:#3c434a}
+.addsynapse-overview .addsynapse-status{display:inline-block;font-size:12px;font-weight:600;padding:2px 8px;border-radius:10px;align-self:flex-start}
+.addsynapse-overview .addsynapse-status-connected{background:#edfaef;color:#00701a}
+.addsynapse-overview .addsynapse-status-not_connected{background:#f0f0f1;color:#50575e}
+.addsynapse-overview .addsynapse-status-error{background:#fcf0f1;color:#b32d2e}
+.addsynapse-overview .addsynapse-card-actions{margin-top:auto;padding-top:4px}
+
+/* Store Assistant: trial / questions line on the Settings tab. */
+.aiops-subscription-line.is-over {
+	font-weight: 600;
+	color: #b32d2e;
+}
+
+/* 1.1.0: Settings → «Your own AI key». */
+.aiops-own-key h3 {
+	margin-top: 0;
+}
+.aiops-own-key .form-table th {
+	width: 160px;
+}
+.aiops-own-key__usage {
+	max-width: 760px;
+}
+.aiops-own-key__remove {
+	margin-top: 8px;
+}
+
+/* 1.1.0: optional AddSynapse account card + announcements (plugin screens only). */
+.aiops-optin {
+	max-width: 760px;
+	margin: 16px 0;
+}
+.aiops-optin h2 {
+	margin-top: 0;
+	font-size: 15px;
+}
+.aiops-optin__form p {
+	margin: 8px 0;
+}
+.aiops-optin__actions .button {
+	margin-right: 8px;
+}
+.aiops-optin__dismiss {
+	margin: 0;
+}
+.aiops-account-area > .notice {
+	margin: 12px 0;
+}
+.aiops-announcement {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	max-width: 960px;
+	margin: 12px 0;
+	padding: 4px 12px;
+	background: #fff;
+	border: 1px solid #c3c4c7;
+	border-left: 4px solid #72aee6;
+}
+.aiops-announcement p {
+	margin: 8px 0;
+}
+.aiops-announcement__dismiss {
+	margin: 0;
+}
+.aiops-optin--compact .aiops-optin__lead {
+	margin: 0 0 8px;
+}
+.aiops-optin__fields input[type="email"] {
+	margin: 0 12px 4px 0;
+}
+.aiops-optin__privacy {
+	margin: 4px 0 8px;
+	color: #50575e;
+}
+.aiops-optin__privacy summary {
+	cursor: pointer;
+}
+.aiops-optin__consent {
+	display: block;
+	margin-top: 6px;
+}
