@@ -1,4 +1,4 @@
-=== AddSynapse – AI Store Assistant for WooCommerce ===
+=== AddSynapse – AI Website & Store Assistant for WooCommerce ===
 Contributors: sakkoulas
 Tags: woocommerce, ai assistant, products, store management, seo
 Requires at least: 6.9
@@ -6,15 +6,15 @@ Tested up to: 7.1
 Requires PHP: 7.4
 WC requires at least: 8.0
 WC tested up to: 11.1
-Stable tag: 1.1.0
+Stable tag: 1.1.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-AI chat in wp-admin, free with your own Anthropic or OpenAI key: ask about your WordPress site and WooCommerce store, edit products with Undo.
+AI chat in wp-admin, free with your own Anthropic or OpenAI key: ask about your website and WooCommerce store, edit products with Undo.
 
 == Description ==
 
-**AddSynapse – AI Store Assistant for WooCommerce** adds an AI chat to wp-admin (**AddSynapse → Store Assistant**) where
+**AddSynapse – AI Website & Store Assistant for WooCommerce** adds an AI chat to wp-admin (**AddSynapse → Store Assistant**) where
 shop managers ask, in plain words and in their own language, about their store and for product changes they would
 otherwise click through screen by screen: "which products are out of stock?", "what were my best sellers last month?",
 "put the Linen Shirt on sale at 29.90 until Sunday", "set this photo as the main image of the blue mug", "write a better
@@ -251,6 +251,9 @@ The readable source of the admin app is in the `src/` folder of the plugin, with
 
 == Changelog ==
 
+= 1.1.1 =
+* Renamed display name to "AddSynapse – AI Website & Store Assistant for WooCommerce" (slug, settings and data unchanged).
+
 = 1.1.0 =
 * Free with your own AI key: paste an Anthropic or OpenAI API key in Settings (or in the chat's first screen) and every
   feature works. The key is stored encrypted, only administrators can change it, and it is sent only to your AI provider.
@@ -295,6 +298,9 @@ The readable source of the admin app is in the `src/` folder of the plugin, with
   everyone, without a connection or subscription.
 
 == Upgrade Notice ==
+
+= 1.1.1 =
+New display name only; nothing else changes.
 
 = 1.1.0 =
 The assistant now runs with your own Anthropic or OpenAI API key, one item per change. The hosted AddSynapse connection and the bulk tools are no longer part of this plugin.

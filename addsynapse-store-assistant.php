@@ -1,9 +1,9 @@
 <?php
 /**
- * Plugin Name:       AddSynapse – AI Store Assistant for WooCommerce
+ * Plugin Name:       AddSynapse – AI Website & Store Assistant for WooCommerce
  * Plugin URI:        https://addsynapse.com/store-assistant
  * Description:       Admin chat where shop managers ask, in their own language, about their store and for changes to one product at a time — with your own Anthropic or OpenAI API key. Every change is a preview a person approves, with Undo.
- * Version:           1.1.0
+ * Version:           1.1.1
  * Requires at least: 6.9
  * Requires PHP:      7.4
  * Author:            AddSynapse
@@ -19,7 +19,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'ADDSYNAPSE_ASSISTANT_VERSION', '1.1.0' );
+define( 'ADDSYNAPSE_ASSISTANT_VERSION', '1.1.1' );
 define( 'ADDSYNAPSE_ASSISTANT_PLUGIN_FILE', __FILE__ );
 define( 'ADDSYNAPSE_ASSISTANT_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'ADDSYNAPSE_ASSISTANT_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
