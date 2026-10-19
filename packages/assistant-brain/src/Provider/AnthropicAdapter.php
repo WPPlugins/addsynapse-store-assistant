@@ -73,7 +73,15 @@ final class AnthropicAdapter implements ProviderAdapter, StreamingAdapter {
 		}
 		$messages = array();
 		foreach ( (array) ( $request['messages'] ?? array() ) as $message ) {
-			$content = Blocks::clean( $message['content'] ?? array() );
+			// OpenAI reasoning items never go to Anthropic (a conversation may switch provider).
+			$content = array_values(
+				array_filter(
+					Blocks::clean( $message['content'] ?? array() ),
+					static function ( $block ) {
+						return 'openai_reasoning' !== $block['type'];
+					}
+				)
+			);
 			if ( $content ) {
 				$messages[] = array(
 					'role'    => 'assistant' === ( $message['role'] ?? '' ) ? 'assistant' : 'user',

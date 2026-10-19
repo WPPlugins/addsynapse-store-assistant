@@ -1,30 +1,34 @@
 === AddSynapse – AI Website & Store Assistant for WooCommerce ===
 Contributors: sakkoulas
-Tags: woocommerce, ai assistant, products, store management, seo
+Tags: ai, ai assistant, woocommerce, ai agent, claude
 Requires at least: 6.9
 Tested up to: 7.1
 Requires PHP: 7.4
 WC requires at least: 8.0
 WC tested up to: 11.1
-Stable tag: 1.1.1
+Stable tag: 1.1.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-AI chat in wp-admin, free with your own Anthropic or OpenAI key: ask about your website and WooCommerce store, edit products with Undo.
+AI assistant in wp-admin for WordPress and WooCommerce: ask about sales, stock and SEO, edit products with Undo. Free with your Claude or OpenAI key.
 
 == Description ==
 
-**AddSynapse – AI Website & Store Assistant for WooCommerce** adds an AI chat to wp-admin (**AddSynapse → Store Assistant**) where
-shop managers ask, in plain words and in their own language, about their store and for product changes they would
-otherwise click through screen by screen: "which products are out of stock?", "what were my best sellers last month?",
-"put the Linen Shirt on sale at 29.90 until Sunday", "set this photo as the main image of the blue mug", "write a better
-SEO title for the Linen Shirt".
+**AddSynapse – AI Website & Store Assistant for WooCommerce** is an AI assistant for WordPress and WooCommerce that
+lives in wp-admin (**AddSynapse → Store Assistant**). Shop managers ask, in plain words and in their own language, about
+their store and their website, and for the product changes they would otherwise click through screen by screen:
+"which products are out of stock?", "what were my best sellers last month?", "put the Linen Shirt on sale at 29.90
+until Sunday", "set this photo as the main image of the blue mug", "write a better SEO title for the Linen Shirt".
 
-**Free with your own AI key.** Paste an Anthropic (Claude) or OpenAI API key in **Settings** (or in the chat's first
-screen) and every feature of the plugin works, with no account and no plan. It edits one product at a time. You pay
-your AI provider
-directly for what you use; the Settings screen shows an estimate of your usage and cost. The key is stored encrypted on
-your site (or in `wp-config.php`) and is never sent to the browser or to AddSynapse.
+It works as an AI agent with a fixed set of checked tools: it looks the data up itself, then prepares a preview of the
+change, and nothing changes until you click **Approve**.
+
+= Free with your own Claude or OpenAI API key =
+
+Paste an Anthropic (Claude) or OpenAI (GPT) API key in **Settings** (or in the chat's first screen) and every feature of
+the plugin works, with no account and no plan. It edits one product at a time. You pay your AI provider directly for
+what you use; the Settings screen shows an estimate of your usage and cost. The key is stored encrypted on your site
+(or in `wp-config.php`) and is never sent to the browser or to AddSynapse.
 
 No account is needed. After your key works, the plugin offers once to create a free AddSynapse account, to be told first
 when Store Assistant Pro launches — optional, nothing is locked without it, and nothing is sent unless you click
@@ -33,27 +37,48 @@ when Store Assistant Pro launches — optional, nothing is locked without it, an
 Everything that runs on your site also works before you add a key: slash commands (for example `/report low_stock` or
 `/price id=123 -10%`), the previews, Approve, Undo and voice input.
 
-= What it can do =
+= WooCommerce reports in plain words =
 
-* **Find and report, across the whole store:** search products (by name, SKU, category, tag, brand, attribute, price,
-  stock), low stock, out of stock, missing images/descriptions/prices, best sellers, sales by day/week/month, recent
-  orders, top customers (as references only — no names or emails leave your site), the store's structure, menus and
-  pages.
-* **Change one product at a time:** price and sale price with dates, stock, its existing categories, tags and brand,
-  its name, short description and description, its main image and gallery (also from an image you drop or paste into
-  the chat), and its SEO title, meta description and focus keyword (Rank Math, Yoast).
-* **Read the site (also without WooCommerce):** menus, pages (Gutenberg and Elementor), the media library and the SEO of
-  pages and posts.
+Search products (by name, SKU, category, tag, brand, attribute, price, stock) and ask for low stock, out of stock,
+products missing images, descriptions or prices, best sellers, sales by day, week or month, recent orders and top
+customers (as references only — no names or emails leave your site). Sales answers come with simple charts.
+
+= AI product descriptions and product SEO, one product at a time =
+
+* **Product descriptions:** the AI writes, rewrites, shortens or translates the name, short description and description
+  of a product, and you see the new text in the preview before you approve it.
+* **Product SEO:** a new SEO title, meta description and focus keyword for a product, in Rank Math or Yoast SEO, with
+  their lengths checked.
+* **Product images:** drop or paste a photo into the chat and make it the main image or add it to the gallery.
+* **Prices and stock:** price and sale price with dates, and the stock quantity.
+* **Categories, tags and brand:** assign the product to existing ones.
 
 Each change covers one product. When you ask for many at once, the assistant says so and offers to do one now.
 
+= Your WordPress website, also without WooCommerce =
+
+The assistant reads your pages (Gutenberg and Elementor), menus, media library and the SEO of pages and posts, so you
+can ask "which pages have no meta description?" or "what is in the main menu?". On a plain WordPress site (no
+WooCommerce) it answers about the site; changes to pages, posts and menus are planned for Store Assistant Pro.
+
+= Voice and images =
+
+Type or speak (optional voice input, off by default) and attach an image to a message. The AI can see an attached image
+(a reduced copy; you can turn this off in Settings).
+
 = Coming soon: Store Assistant Pro =
 
-AddSynapse is preparing **Store Assistant Pro**, a separate add-on for work beyond single products — for example bulk
-changes by category or brand, CSV imports, managing categories, tags and brands, attributes and variations, coupons and
-orders, the site's appearance (menus, pages, sections, posts), content writing and a full change history. It is not
-released yet, it is not included in this plugin and this plugin does not check for it: everything described above is
-complete and free.
+AddSynapse is preparing **Store Assistant Pro**, a separate add-on for work beyond single products, for example:
+
+* **AI blog writing:** drafting blog posts and other content.
+* **Bulk edit products:** bulk price changes by category or brand, CSV imports.
+* **SEO at scale:** SEO titles, meta descriptions and image alt text for many products, pages and posts at once.
+* **Pages and menus:** editing pages, sections, menus and the site's appearance.
+* **Catalog and sales:** managing categories, tags, brands, attributes and variations, coupons and orders, and a full
+  change history.
+
+It is not released yet, it is not included in this plugin and this plugin does not check for it: everything described
+in the sections above is complete and free.
 
 = Every change is a preview a person approves =
 
@@ -190,6 +215,16 @@ works the same without it.
 This plugin edits one product at a time (one preview per product). Bulk editing is coming in Store Assistant Pro, a
 separate add-on.
 
+= Can it write product descriptions? =
+
+Yes, one product at a time: ask it to write, improve or translate a product's name, short description or description.
+The new text appears in a preview; nothing changes until you click **Approve**, and **Undo** brings the old text back.
+
+= Can it write blog posts? =
+
+Not in this plugin. It reads your posts and their SEO, but writing and publishing blog posts (AI blog writing) is
+planned for Store Assistant Pro, a separate add-on that is not released yet.
+
 = Where is my AI key stored, and who sees it? =
 
 Encrypted in your WordPress database (not autoloaded), or in `wp-config.php` if you define
@@ -251,6 +286,10 @@ The readable source of the admin app is in the `src/` folder of the plugin, with
 
 == Changelog ==
 
+= 1.1.2 =
+* Improved description.
+* Admin bar shortcut to the assistant.
+
 = 1.1.1 =
 * Renamed display name to "AddSynapse – AI Website & Store Assistant for WooCommerce" (slug, settings and data unchanged).
 
@@ -298,6 +337,9 @@ The readable source of the admin app is in the `src/` folder of the plugin, with
   everyone, without a connection or subscription.
 
 == Upgrade Notice ==
+
+= 1.1.2 =
+A shortcut to the assistant in the admin bar and a clearer description.
 
 = 1.1.1 =
 New display name only; nothing else changes.

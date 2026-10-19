@@ -12,6 +12,7 @@ use Addsynapse\StoreAssistant\Admin\AddsynapseMenu;
 use Addsynapse\StoreAssistant\Admin\AdminPage;
 use Addsynapse\StoreAssistant\Admin\SettingsPage;
 use Addsynapse\StoreAssistant\Admin\OwnKeySection;
+use Addsynapse\StoreAssistant\Admin\AdminBarLink;
 use Addsynapse\StoreAssistant\Account\Announcements;
 use Addsynapse\StoreAssistant\Account\OptIn;
 use Addsynapse\StoreAssistant\Changesets\ChangesetService;
@@ -82,6 +83,8 @@ final class Plugin {
 			ChangesetService::class,
 			ImageUploads::class,
 			new RestRoutes(),
+			// Toolbar link to the chat (wp-admin and front end, users with the capability).
+			AdminBarLink::class,
 		);
 		if ( $admin ) {
 			// Shared «AddSynapse» top-level menu + Overview (docs/ADMIN-MENU.md).

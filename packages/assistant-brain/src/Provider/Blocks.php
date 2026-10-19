@@ -19,6 +19,9 @@ final class Blocks {
 	 */
 	public const MAX_IMAGE_BASE64 = 2800000;
 
+	/** Largest encrypted OpenAI reasoning item kept for replay (bytes). */
+	public const MAX_REASONING = 262144;
+
 	/**
 	 * Clean blocks of one message (unknown types dropped).
 	 *
@@ -89,6 +92,17 @@ final class Blocks {
 							'type'      => 'thinking',
 							'thinking'  => (string) ( $block['thinking'] ?? '' ),
 							'signature' => (string) $block['signature'],
+						);
+					}
+					break;
+				case 'openai_reasoning':
+					// OpenAI reasoning item (encrypted, opaque): replayed to OpenAI so a reasoning model keeps its reasoning across
+					// tool rounds with store=false; never shown, never sent to another provider.
+					if ( is_string( $block['encrypted_content'] ?? null ) && '' !== $block['encrypted_content'] && strlen( $block['encrypted_content'] ) <= self::MAX_REASONING ) {
+						$out[] = array(
+							'type'              => 'openai_reasoning',
+							'id'                => (string) ( $block['id'] ?? '' ),
+							'encrypted_content' => $block['encrypted_content'],
 						);
 					}
 					break;

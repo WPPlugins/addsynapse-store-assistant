@@ -91,12 +91,16 @@ final class HistoryBuilder {
 						}
 					} elseif ( 'redacted_thinking' === $type ) {
 						$clean[] = $b;
+					} elseif ( 'openai_reasoning' === $type ) {
+						if ( ! empty( $b['encrypted_content'] ) ) {
+							$clean[] = $b;
+						}
 					} elseif ( 'tool_use' === $type ) {
 						if ( isset( $result_ids[ (string) $b['id'] ] ) ) {
 							$clean[]                       = $b;
 							$kept_ids[ (string) $b['id'] ] = true;
 						}
-					}
+					}//end if
 				}//end foreach
 				// Thinking alone is not a useful assistant turn.
 				$has_visible = false;

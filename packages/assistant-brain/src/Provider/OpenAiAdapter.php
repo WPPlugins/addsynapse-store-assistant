@@ -36,6 +36,11 @@ final class OpenAiAdapter implements ProviderAdapter, StreamingAdapter {
 		if ( isset( $request['effort'] ) && 0 === strpos( (string) $request['model'], 'gpt-5' ) ) {
 			$body['reasoning'] = array( 'effort' => (string) $request['effort'] );
 		}
+		// Reasoning models with store=false: ask for the encrypted reasoning items and replay them in the next call of the
+		// turn (OpenAI's stateless pattern). Without them gpt-5 models may write their planning into the visible answer.
+		if ( 0 === strpos( (string) $request['model'], 'gpt-5' ) || 1 === preg_match( '/^o[0-9]/', (string) $request['model'] ) ) {
+			$body['include'] = array( 'reasoning.encrypted_content' );
+		}
 		if ( '' !== (string) ( $request['system'] ?? '' ) ) {
 			$body['instructions'] = (string) $request['system'];
 		}
@@ -73,6 +78,23 @@ final class OpenAiAdapter implements ProviderAdapter, StreamingAdapter {
 							$text[] = array(
 								'type'      => 'input_image',
 								'image_url' => 'data:' . $block['source']['media_type'] . ';base64,' . $block['source']['data'],
+							);
+						}
+						break;
+					case 'openai_reasoning':
+						if ( 'assistant' === $role ) {
+							$input   = self::flush( $input, $role, $text );
+							$text    = array();
+							$input[] = array_filter(
+								array(
+									'type'              => 'reasoning',
+									'id'                => $block['id'],
+									'summary'           => array(),
+									'encrypted_content' => $block['encrypted_content'],
+								),
+								static function ( $v ) {
+									return '' !== $v;
+								}
 							);
 						}
 						break;
@@ -156,7 +178,13 @@ final class OpenAiAdapter implements ProviderAdapter, StreamingAdapter {
 		$stop    = 'end_turn';
 		foreach ( $data['output'] as $item ) {
 			$type = (string) ( $item['type'] ?? '' );
-			if ( 'message' === $type ) {
+			if ( 'reasoning' === $type && is_string( $item['encrypted_content'] ?? null ) && '' !== $item['encrypted_content'] ) {
+				$content[] = array(
+					'type'              => 'openai_reasoning',
+					'id'                => (string) ( $item['id'] ?? '' ),
+					'encrypted_content' => $item['encrypted_content'],
+				);
+			} elseif ( 'message' === $type ) {
 				foreach ( (array) ( $item['content'] ?? array() ) as $part ) {
 					if ( 'output_text' === ( $part['type'] ?? '' ) && '' !== (string) ( $part['text'] ?? '' ) ) {
 						$content[] = array(
