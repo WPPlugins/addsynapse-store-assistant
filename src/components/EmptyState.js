@@ -1,10 +1,12 @@
 /**
  * Empty thread: suggested prompts, slash commands (they run on the site without the AI) and a short, dismissible
- * note about the separate Pro add-on (information only: nothing in this plugin is locked).
+ * list of what the separate Store Assistant Pro add-on adds, each line marked «Pro» with a lock, and a «See Pro» link
+ * (information only: nothing in this plugin is locked; hidden once another plugin provides the Pro features).
  */
 import { __ } from '@wordpress/i18n';
 import { useState } from '@wordpress/element';
 import { Button } from '@wordpress/components';
+import { ProBadge, SeeProLink, proShown } from './ProOffer';
 
 const COMMANDS = [
 	'/help',
@@ -100,9 +102,12 @@ function proLines( site ) {
 			'SEO and image alt texts at scale, content writing',
 			'addsynapse-store-assistant'
 		),
-		__( 'Full change history', 'addsynapse-store-assistant' ),
 		__(
-			'An AI without your own key (the AddSynapse service)',
+			'Full change history with Undo of older changes',
+			'addsynapse-store-assistant'
+		),
+		__(
+			'Our AI included, no API key needed',
 			'addsynapse-store-assistant'
 		),
 	];
@@ -117,7 +122,7 @@ function readHidden() {
 }
 
 /**
- * «Coming soon in Store Assistant Pro» — collapsed by default, dismissible (remembered in this browser).
+ * «Store Assistant Pro» — collapsed by default, dismissible (remembered in this browser).
  *
  * @param {Object}  props      Props.
  * @param {boolean} props.site Plain WordPress site.
@@ -125,7 +130,7 @@ function readHidden() {
  */
 function ProNote( { site } ) {
 	const [ hidden, setHidden ] = useState( readHidden );
-	if ( hidden ) {
+	if ( hidden || ! proShown() ) {
 		return null;
 	}
 	const hide = () => {
@@ -140,22 +145,25 @@ function ProNote( { site } ) {
 		<details className="aiops-pro-info">
 			<summary className="aiops-pro-info__summary">
 				{ __(
-					'Coming soon in Store Assistant Pro',
+					'More with Store Assistant Pro',
 					'addsynapse-store-assistant'
 				) }
 			</summary>
 			<p className="aiops-pro-info__intro">
 				{ __(
-					'A separate add-on, not released yet.',
+					'A separate add-on. Everything above stays free.',
 					'addsynapse-store-assistant'
 				) }
 			</p>
 			<ul className="aiops-pro-info__list">
 				{ proLines( site ).map( ( line ) => (
-					<li key={ line }>{ line }</li>
+					<li key={ line }>
+						<ProBadge /> { line }
+					</li>
 				) ) }
 			</ul>
 			<div className="aiops-pro-info__actions">
+				<SeeProLink spot="chat-empty" />
 				<Button variant="link" onClick={ hide }>
 					{ __( 'Hide', 'addsynapse-store-assistant' ) }
 				</Button>

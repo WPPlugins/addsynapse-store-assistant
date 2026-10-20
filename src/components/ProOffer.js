@@ -1,215 +1,90 @@
 /**
- * Optional AddSynapse account in the chat (Store Assistant Pro is not released yet): a small «Get notified» link under the
- * first «coming in Pro» reply of a conversation opens the opt-in dialog. Nothing is locked; nothing is sent before
- * «Create account».
+ * Links to Store Assistant Pro, the separate add-on (information only: nothing in this plugin is locked).
+ * The page comes from the server (Admin\ProOffers: the manager's language); every placement adds its own
+ * utm_source spot. No link at all once another plugin provides the Pro features (settings.pro.show false).
  */
-import { createContext, useContext, useState } from '@wordpress/element';
 import { __ } from '@wordpress/i18n';
-import {
-	Button,
-	CheckboxControl,
-	Modal,
-	Notice,
-	TextControl,
-} from '@wordpress/components';
-import { createAccount } from '../lib/api';
+import { Icon, lockSmall } from '@wordpress/icons';
 
 const settings = window.addsynapseAssistant || {};
-
-/** { firstId, account, open } — firstId = the one «coming in Pro» reply of the conversation that carries the link. */
-export const ProOfferContext = createContext( {
-	firstId: '',
-	account: settings.account || {},
-	open: () => {},
-} );
+const pro = settings.pro || {};
 
 /**
- * The opt-in dialog (same data and consent as the card in Settings).
+ * Whether the Pro links are shown.
  *
- * @param {Object}   props         Props.
- * @param {Object}   props.account Account state.
- * @param {Function} props.onClose Close.
- * @param {Function} props.onDone  New account state.
- * @return {JSX.Element} Modal.
+ * @return {boolean} Shown.
  */
-export function OptInDialog( { account, onClose, onDone } ) {
-	const [ email, setEmail ] = useState( account.email || '' );
-	const [ marketing, setMarketing ] = useState( false );
-	const [ busy, setBusy ] = useState( false );
-	const [ result, setResult ] = useState( null );
+export function proShown() {
+	return !! ( pro.show && pro.url );
+}
 
-	const submit = ( event ) => {
-		event.preventDefault();
-		setBusy( true );
-		createAccount( { email, marketing } )
-			.then( ( answer ) => {
-				setResult( answer );
-				if ( answer && answer.account ) {
-					onDone( answer.account );
-				}
-			} )
-			.catch( () =>
-				setResult( {
-					status: 'error',
-					message: __(
-						'The account could not be created. Try again later.',
-						'addsynapse-store-assistant'
-					),
-				} )
-			)
-			.finally( () => setBusy( false ) );
-	};
+/**
+ * Link of one placement.
+ *
+ * @param {string} spot Placement (letters, digits, «-»).
+ * @return {string} URL ('' when hidden or invalid).
+ */
+export function proUrl( spot ) {
+	if ( ! proShown() ) {
+		return '';
+	}
+	try {
+		const url = new URL( pro.url );
+		if ( url.protocol !== 'https:' ) {
+			return '';
+		}
+		url.searchParams.set(
+			'utm_source',
+			String( spot || 'chat' )
+				.toLowerCase()
+				.replace( /[^a-z0-9-]/g, '' )
+		);
+		url.searchParams.set( 'utm_medium', 'wp-admin' );
+		url.searchParams.set( 'utm_campaign', 'gopro' );
+		return url.toString();
+	} catch ( e ) {
+		return '';
+	}
+}
 
-	const created = result && result.status === 'created';
+/**
+ * «See Pro» link styled as a button (opens the add-on's page in a new tab).
+ *
+ * @param {Object} props           Props.
+ * @param {string} props.spot      Placement.
+ * @param {string} props.className Extra class.
+ * @return {JSX.Element|null} Link.
+ */
+export function SeeProLink( { spot, className = '' } ) {
+	const href = proUrl( spot );
+	if ( ! href ) {
+		return null;
+	}
 	return (
-		<Modal
-			className="aiops-optin-dialog"
-			title={ __( 'Get notified', 'addsynapse-store-assistant' ) }
-			onRequestClose={ onClose }
-			size="medium"
+		<a
+			className={ `components-button is-secondary is-compact aiops-pro-link ${ className }` }
+			href={ href }
+			target="_blank"
+			rel="noopener noreferrer"
 		>
-			{ created ? (
-				<div className="aiops-optin-dialog__done">
-					<p>
-						<strong>
-							{ __(
-								'Your AddSynapse account is ready',
-								'addsynapse-store-assistant'
-							) }
-						</strong>
-					</p>
-					<p>
-						{ __(
-							'We will let you know when Store Assistant Pro launches.',
-							'addsynapse-store-assistant'
-						) }
-					</p>
-					<p>
-						<Button variant="primary" onClick={ onClose }>
-							{ __( 'Close', 'addsynapse-store-assistant' ) }
-						</Button>
-					</p>
-				</div>
-			) : (
-				<form onSubmit={ submit } className="aiops-optin-dialog__form">
-					<p className="aiops-optin__lead">
-						<strong>
-							{ __(
-								'Get notified first when Store Assistant Pro launches — with a launch discount. Create a free AddSynapse account.',
-								'addsynapse-store-assistant'
-							) }
-						</strong>
-					</p>
-					<TextControl
-						__nextHasNoMarginBottom
-						__next40pxDefaultSize
-						type="email"
-						label={ __( 'Email', 'addsynapse-store-assistant' ) }
-						value={ email }
-						onChange={ setEmail }
-						required
-					/>
-					<CheckboxControl
-						__nextHasNoMarginBottom
-						label={ __(
-							'Send me news and offers by email (optional; you can unsubscribe at any time)',
-							'addsynapse-store-assistant'
-						) }
-						checked={ marketing }
-						onChange={ setMarketing }
-					/>
-					<details className="aiops-optin__privacy">
-						<summary>
-							{ __(
-								'What do we receive?',
-								'addsynapse-store-assistant'
-							) }
-						</summary>
-						<p>
-							{ __(
-								'Your email, the address of your shop and your choice above, only when you click «Create account». Never your AI key.',
-								'addsynapse-store-assistant'
-							) }{ ' ' }
-							<a
-								href={ account.termsUrl }
-								target="_blank"
-								rel="noopener noreferrer"
-							>
-								{ __( 'Terms', 'addsynapse-store-assistant' ) }
-							</a>
-							{ ' · ' }
-							<a
-								href={ account.privacyUrl }
-								target="_blank"
-								rel="noopener noreferrer"
-							>
-								{ __(
-									'Privacy',
-									'addsynapse-store-assistant'
-								) }
-							</a>
-						</p>
-					</details>
-					{ result && result.message && (
-						<Notice status="warning" isDismissible={ false }>
-							{ result.message }{ ' ' }
-							{ result.link && (
-								<a
-									href={ result.link }
-									target="_blank"
-									rel="noopener noreferrer"
-								>
-									{ __(
-										'Sign in',
-										'addsynapse-store-assistant'
-									) }
-								</a>
-							) }
-						</Notice>
-					) }
-					<p className="aiops-optin__actions">
-						<Button
-							variant="primary"
-							type="submit"
-							isBusy={ busy }
-							disabled={ busy }
-						>
-							{ __(
-								'Create account',
-								'addsynapse-store-assistant'
-							) }
-						</Button>{ ' ' }
-						<Button variant="tertiary" onClick={ onClose }>
-							{ __( 'Not now', 'addsynapse-store-assistant' ) }
-						</Button>
-					</p>
-				</form>
-			) }
-		</Modal>
+			{ __( 'See Pro', 'addsynapse-store-assistant' ) }
+			<span className="screen-reader-text">
+				{ __( '(opens in a new tab)', 'addsynapse-store-assistant' ) }
+			</span>
+		</a>
 	);
 }
 
 /**
- * «Get notified» under the FIRST «coming in Pro» reply of a conversation (administrators without an account only).
+ * Small «Pro» badge with a lock (marks what the separate add-on adds; free features are never marked).
  *
- * @param {Object} props      Props.
- * @param {Object} props.part Tool part.
- * @return {JSX.Element|null} Link.
+ * @return {JSX.Element} Badge.
  */
-export function ProOfferCta( { part } ) {
-	const { firstId, account, open } = useContext( ProOfferContext );
-	if (
-		! part ||
-		! part.id ||
-		part.id !== firstId ||
-		! account ||
-		! account.canCreate
-	) {
-		return null;
-	}
+export function ProBadge() {
 	return (
-		<Button variant="link" className="aiops-pro-offer" onClick={ open }>
-			{ __( 'Get notified', 'addsynapse-store-assistant' ) }
-		</Button>
+		<span className="aiops-pro-badge">
+			<Icon icon={ lockSmall } size={ 16 } />
+			{ __( 'Pro', 'addsynapse-store-assistant' ) }
+		</span>
 	);
 }

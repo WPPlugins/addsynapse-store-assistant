@@ -173,9 +173,13 @@ final class SettingsPage {
 	}
 
 	/**
-	 * «Coming soon: Store Assistant Pro»: information about the separate add-on (not released; nothing here checks for it).
+	 * «Store Assistant Pro»: what the separate add-on adds, with a link to its page (information only; nothing here checks
+	 * for it). Hidden once another plugin provides the Pro features.
 	 */
 	private static function render_pro(): void {
+		if ( ! ProOffers::shown() ) {
+			return;
+		}
 		$items = array();
 		if ( Environment::has_woocommerce() ) {
 			$items[] = __( 'Bulk changes: prices, stock and product details for a whole category, a brand or the whole catalogue', 'addsynapse-store-assistant' );
@@ -187,15 +191,16 @@ final class SettingsPage {
 		$items[] = __( 'Site appearance: menus, page texts, sections and banners, posts and blog categories', 'addsynapse-store-assistant' );
 		$items[] = __( 'SEO and image alt texts at scale, content writing', 'addsynapse-store-assistant' );
 		$items[] = __( 'A full change history with undo of older changes', 'addsynapse-store-assistant' );
-		$items[] = __( 'An AI you do not need a key for (the AddSynapse service)', 'addsynapse-store-assistant' );
+		$items[] = __( 'Our AI included, no API key needed', 'addsynapse-store-assistant' );
 		echo '<div class="aiops-connector__card aiops-pro-card" id="addsynapse-assistant-pro">';
-		echo '<h2>' . esc_html__( 'Coming soon: Store Assistant Pro', 'addsynapse-store-assistant' ) . '</h2>';
-		echo '<p>' . esc_html__( 'This plugin is free and edits one product at a time. Store Assistant Pro, a separate add-on for work beyond single products, is coming soon:', 'addsynapse-store-assistant' ) . '</p>';
+		echo '<h2>' . esc_html__( 'Store Assistant Pro', 'addsynapse-store-assistant' ) . '</h2>';
+		echo '<p>' . esc_html__( 'This plugin is free and edits one product at a time. Store Assistant Pro is a separate add-on for work beyond single products:', 'addsynapse-store-assistant' ) . '</p>';
 		echo '<ul class="aiops-pro-card__list">';
 		foreach ( $items as $item ) {
-			echo '<li>' . esc_html( $item ) . '</li>';
+			echo '<li><span class="aiops-pro-card__badge"><span class="dashicons dashicons-lock" aria-hidden="true"></span>' . esc_html__( 'Pro', 'addsynapse-store-assistant' ) . '</span> ' . esc_html( $item ) . '</li>';
 		}
 		echo '</ul>';
+		echo '<p><a class="button button-primary" href="' . esc_url( ProOffers::url( 'settings' ) ) . '" target="_blank" rel="noopener noreferrer">' . esc_html__( 'See Pro', 'addsynapse-store-assistant' ) . '<span class="screen-reader-text"> ' . esc_html__( '(opens in a new tab)', 'addsynapse-store-assistant' ) . '</span></a></p>';
 		echo '</div>';
 	}
 

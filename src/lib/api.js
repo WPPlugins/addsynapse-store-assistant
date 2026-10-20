@@ -41,20 +41,6 @@ export const getStatus = () => apiFetch( { path: `${ BASE }/status` } );
 export const saveAiKey = ( data ) =>
 	apiFetch( { path: `${ BASE }/ai-key`, method: 'POST', data } );
 
-/**
- * The optional AddSynapse account (administrators): the chat's «Try Pro» dialog.
- *
- * @param {Object} data { email, marketing }.
- * @return {Promise<Object>} { status, message, link, account }.
- */
-export const createAccount = ( data ) =>
-	apiFetch( {
-		path: `${ BASE }/account/optin`,
-		method: 'POST',
-		data,
-		parse: false,
-	} ).then( ( response ) => response.json() );
-
 export const stopConversation = ( id ) =>
 	apiFetch( {
 		path: `${ BASE }/conversations/${ id }/stop`,

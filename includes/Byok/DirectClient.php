@@ -19,6 +19,7 @@ use Addsynapse\StoreAssistant\Brain\Provider\ProviderAdapter;
 use Addsynapse\StoreAssistant\Brain\Provider\ProviderError;
 use Addsynapse\StoreAssistant\Brain\Provider\Sse;
 use Addsynapse\StoreAssistant\Brain\Provider\StreamingAdapter;
+use Addsynapse\StoreAssistant\Admin\ProOffers;
 use Addsynapse\StoreAssistant\Agent\Extensions;
 use Addsynapse\StoreAssistant\Agent\Selection;
 use Addsynapse\StoreAssistant\Agent\ToolRegistry;
@@ -38,9 +39,12 @@ defined( 'ABSPATH' ) || exit;
  * The LlmClient of the plugin: AgentLoop (tools, drafts, approval) talks to the manager's own AI provider. Every tool
  * of the plugin is available with the own key (nothing locked — wordpress.org guideline 5). Per call:
  *  - router = one small-model call per NEW manager message (packages/assistant-brain Classifier): which tool bundles
- *    the question needs, a short title, or a polite out-of-scope reply;
- *  - system = brain sections for the tools of THIS request + a note about this installation + store summary + locale
- *    (stable bytes during a conversation → prompt cache);
+ *    (and which tool groups of an add-on, when one describes its groups) the question needs, a short title, or a polite
+ *    out-of-scope reply;
+ *  - lean (1.2.0): system = a small core + only the brain sections for the tools of THIS request and the facts of the
+ *    conversation (ticked products, an uploaded image) + a note about this installation + store summary + locale; tools
+ *    = the bundles' tools and the add-on groups in use; the rest waits behind `request_tools` (one escalation per
+ *    message). Bundles, groups and facts only grow during a warm conversation → stable bytes → prompt cache;
  *  - tools  = the agent's runnable abilities (ToolRegistry::definitions), renamed to the canonical names the prompt
  *    uses, with the tuned descriptions of the brain's catalog;
  *  - every user message gets its own reply-language block (deterministic → the history prefix stays stable);
@@ -122,15 +126,26 @@ class DirectClient implements LlmClient {
 			}
 			return $response;
 		}//end if
-		// 2. Main call with the bundle's tools (+ request_tools); one escalation to every tool when asked.
-		$canonical = $this->canonical_request( $request, $model, $provider, (array) $route['bundles'] );
-		$names     = $canonical['_names'];
+		// 2. Main call with the bundle's tools and the add-on groups of the conversation (+ request_tools); one
+		// escalation when the model asks: the groups it names, or every tool.
+		$conversation = (int) ( $request['addsynapse_assistant_conversation_id'] ?? 0 );
+		$groups       = (array) ( $route['groups'] ?? array() );
+		$facts        = (array) ( $route['facts'] ?? array() );
+		$canonical    = $this->canonical_request( $request, $model, $provider, (array) $route['bundles'], $groups, $facts );
+		$names        = $canonical['_names'];
 		unset( $canonical['_names'] );
-		$out = $this->main_call( $adapter, $provider, $canonical, $key, $names, $on_event, $should_abort );
-		if ( self::asks_for_tools( $out['content'] ) ) {
-			$this->remember( (int) ( $request['addsynapse_assistant_conversation_id'] ?? 0 ), array( Classifier::FULL ) );
+		$out    = $this->main_call( $adapter, $provider, $canonical, $key, $names, $on_event, $should_abort );
+		$wanted = self::requested_groups( $out['content'], array_keys( (array) ( $request['addsynapse_assistant_extension']['groups'] ?? array() ) ) );
+		if ( null !== $wanted ) {
+			$bundles = (array) $route['bundles'];
+			if ( $wanted ) {
+				$groups = $this->remember( $conversation, $bundles, $this->stored( $conversation ), $wanted )['groups'];
+			} else {
+				$bundles = array( Classifier::FULL );
+				$this->remember( $conversation, $bundles, $this->stored( $conversation ) );
+			}
 			$first     = $out['usage'];
-			$canonical = $this->canonical_request( $request, $model, $provider, array( Classifier::FULL ) );
+			$canonical = $this->canonical_request( $request, $model, $provider, $bundles, $groups, $facts );
 			$names     = $canonical['_names'];
 			unset( $canonical['_names'] );
 			$out          = $this->main_call( $adapter, $provider, $canonical, $key, $names, $on_event, $should_abort );
@@ -209,17 +224,30 @@ class DirectClient implements LlmClient {
 	/**
 	 * Builds the canonical (Anthropic-shaped) request.
 	 *
-	 * @param array<string,mixed> $request  AgentLoop request.
-	 * @param string              $model    Model.
-	 * @param string              $provider Provider.
-	 * @param array<int,string>   $bundles  Router bundles (full = every tool).
+	 * @param array<string,mixed>    $request  AgentLoop request.
+	 * @param string                 $model    Model.
+	 * @param string                 $provider Provider.
+	 * @param array<int,string>      $bundles  Router bundles (full = every tool).
+	 * @param array<int,string>|null $groups   Active add-on tool groups (null = all; full bundles = all).
+	 * @param array<string,mixed>    $facts    Sticky facts of the conversation (`selection`).
 	 * @return array<string,mixed> With `_names` = canonical → local tool name.
 	 */
-	public function canonical_request( array $request, string $model, string $provider, array $bundles = array( Classifier::FULL ) ): array {
+	public function canonical_request( array $request, string $model, string $provider, array $bundles = array( Classifier::FULL ), ?array $groups = null, array $facts = array() ): array {
 		$names       = array();
 		$tools       = array();
 		$all         = array();
 		$definitions = isset( $request['tools'] ) ? (array) $request['tools'] : ( new ToolRegistry() )->definitions();
+		// «Store Assistant Pro» answers only while the plugin shows the add-on (Admin\ProOffers).
+		if ( ! ProOffers::shown() ) {
+			$definitions = array_values(
+				array_filter(
+					$definitions,
+					static function ( $tool ) {
+						return 'coming_in_pro' !== ToolCatalog::canonical( str_replace( '__', '/', (string) $tool['name'] ) );
+					}
+				)
+			);
+		}
 		// Tools another plugin adds to this request (Agent\Extensions): always offered, and one with the name of a
 		// built-in tool replaces it.
 		$extension = (array) ( $request['addsynapse_assistant_extension']['tools'] ?? array() );
@@ -254,9 +282,21 @@ class DirectClient implements LlmClient {
 				'input_schema' => $tool['input_schema'] ?? array( 'type' => 'object' ),
 			);
 		}
+		// Add-on tools of a described group: only the active groups (router, history, loaded) — the rest wait behind
+		// request_tools. Tools without a described group are always offered.
+		$described = (array) ( $request['addsynapse_assistant_extension']['groups'] ?? array() );
+		$history   = array_values( (array) ( $request['messages'] ?? array() ) );
+		$active    = ( null === $groups || array( Classifier::FULL ) === Classifier::normalize( $bundles ) ) ? array_keys( $described ) : $groups;
+		$active    = array_flip( array_merge( $active, self::history_groups( $history, $extension ) ) );
+		$waiting   = array();
 		foreach ( $extension as $tool ) {
-			$local          = (string) $tool['name'];
-			$name           = substr( $local, strlen( Extensions::PREFIX ) );
+			$local = (string) $tool['name'];
+			$name  = substr( $local, strlen( Extensions::PREFIX ) );
+			$group = (string) ( $tool['group'] ?? '' );
+			if ( '' !== $group && isset( $described[ $group ] ) && ! isset( $active[ $group ] ) ) {
+				$waiting[ $group ] = (string) $described[ $group ];
+				continue;
+			}
 			$names[ $name ] = $local;
 			$tools[]        = array(
 				'name'         => $name,
@@ -264,14 +304,17 @@ class DirectClient implements LlmClient {
 				'input_schema' => $tool['input_schema'] ?? array( 'type' => 'object' ),
 			);
 		}
-		if ( null !== $only ) {
-			$tools[] = Classifier::request_tools_tool();
+		if ( null !== $only || $waiting ) {
+			$tools[] = Classifier::request_tools_tool( $waiting );
 		}
 		$locals   = array_flip( $names );
 		$admin    = Locales::clean_locale( (string) get_user_locale() );
 		$messages = array();
-		$history  = array_values( (array) ( $request['messages'] ?? array() ) );
 		$last     = self::newest_user_text( $history );
+		$facts    = array(
+			'selection' => ! empty( $facts['selection'] ) || ! empty( Selection::sanitize( $request['addsynapse_assistant_selection'] ?? array() ) ),
+			'image'     => ! empty( $facts['image'] ) || self::has_image( $history ),
+		);
 		foreach ( $history as $i => $message ) {
 			$content = is_array( $message['content'] ?? null ) ? $message['content'] : array(
 				array(
@@ -296,7 +339,7 @@ class DirectClient implements LlmClient {
 		$canonical           = array(
 			'model'      => $model,
 			'max_tokens' => self::MAX_TOKENS,
-			'system'     => $this->system( array_keys( $names ), $admin, (string) ( $request['addsynapse_assistant_extension']['addendum'] ?? '' ) ),
+			'system'     => $this->system( array_keys( $names ), $admin, (string) ( $request['addsynapse_assistant_extension']['addendum'] ?? '' ), $facts ),
 			'tools'      => $tools,
 			'messages'   => $messages,
 			'cache'      => true,
@@ -310,12 +353,13 @@ class DirectClient implements LlmClient {
 	/**
 	 * System prompt: sections + installation note + store summary + locale.
 	 *
-	 * @param array<int,string> $tools    Canonical tool names.
-	 * @param string            $admin    Admin locale.
-	 * @param string            $addendum Instructions another plugin adds to this request ('' = none).
+	 * @param array<int,string>   $tools    Canonical tool names.
+	 * @param string              $admin    Admin locale.
+	 * @param string              $addendum Instructions another plugin adds to this request ('' = none).
+	 * @param array<string,mixed> $facts    Facts of the conversation (selection, image).
 	 */
-	private function system( array $tools, string $admin, string $addendum = '' ): string {
-		$system = Prompt::system( $tools, Environment::has_woocommerce() );
+	private function system( array $tools, string $admin, string $addendum = '', array $facts = array() ): string {
+		$system = Prompt::system( $tools, Environment::has_woocommerce(), $facts );
 		$locale = DataBlocks::locale( $admin, Locales::clean_locale( (string) get_locale() ) );
 		if ( null !== $locale ) {
 			$system .= "\n" . $locale . "\n";
@@ -468,26 +512,33 @@ class DirectClient implements LlmClient {
 	public function route( array $request, string $provider, string $key, ProviderAdapter $adapter ): array {
 		$conversation = (int) ( $request['addsynapse_assistant_conversation_id'] ?? 0 );
 		$history      = array_values( (array) ( $request['messages'] ?? array() ) );
-		$stored       = $conversation > 0 ? get_transient( self::ROUTE_TRANSIENT . $conversation ) : false;
-		$stored       = is_array( $stored ) ? $stored : array();
+		$stored       = $this->stored( $conversation );
 		$text         = self::user_text( $history ? end( $history ) : array() );
+		$described    = (array) ( $request['addsynapse_assistant_extension']['groups'] ?? array() );
+		$selection    = count( Selection::sanitize( $request['addsynapse_assistant_selection'] ?? array() ) );
 		$full         = array(
 			'bundles' => array( Classifier::FULL ),
+			'groups'  => array(),
 			'scope'   => 'in',
 			'title'   => '',
 			'source'  => 'full',
 		);
 		if ( '' === $text ) {
-			// Tool round of the same message: same bundles as its first call.
-			return array( 'bundles' => (array) ( $stored['bundles'] ?? array( Classifier::FULL ) ) ) + $full;
+			// Tool round of the same message: same bundles, groups and facts as its first call.
+			return array(
+				'bundles' => (array) ( $stored['bundles'] ?? array( Classifier::FULL ) ),
+				'groups'  => (array) ( $stored['groups'] ?? array() ),
+				'facts'   => (array) ( $stored['facts'] ?? array() ),
+			) + $full;
 		}
+		$facts = array( 'selection' => $selection > 0 );
 		// PHPUnit only (Seams): one provider call per answer, without the router.
 		if ( null !== Seams::get( 'no_router', 'array' ) ) {
 			return $full;
 		}
 		// Deterministic cases (no router call).
 		if ( ! empty( $request['addsynapse_assistant_image'] ) ) {
-			return $this->remember( $conversation, array( Classifier::FULL ), $stored ) + $full;
+			return $this->remember( $conversation, array( Classifier::FULL ), $stored, array(), $facts ) + $full;
 		}
 		$users    = 0;
 		$previous = '';
@@ -509,16 +560,17 @@ class DirectClient implements LlmClient {
 		$ctx   = array(
 			'message'        => $text,
 			'site_type'      => Environment::has_woocommerce() ? 'shop' : 'site',
-			'selection'      => count( Selection::sanitize( $request['addsynapse_assistant_selection'] ?? array() ) ),
+			'selection'      => $selection,
 			'previous'       => $previous,
 			'first'          => 1 === $users,
 			'reply_language' => ReplyLanguage::detect( $text, '' !== $admin ? $admin : null ),
 		);
 		$call  = array(
 			'model'      => Classifier::model( $provider ),
-			'max_tokens' => 400,
+			// Room for a reasoning model's hidden thinking (an empty answer falls back to every tool).
+			'max_tokens' => 800,
 			'effort'     => 'low',
-			'system'     => Classifier::prompt(),
+			'system'     => Classifier::prompt( $described ),
 			'messages'   => array(
 				array(
 					'role'    => 'user',
@@ -538,38 +590,109 @@ class DirectClient implements LlmClient {
 					$reply .= (string) $block['text'];
 				}
 			}
-			$decision = Classifier::decide( Classifier::parse( $reply ) );
+			$decision = Classifier::decide( Classifier::parse( $reply, $described ) );
 		} catch ( ProviderError $e ) {
 			// The main call reports real key/quota errors; the router just falls back to every tool.
 			$decision = Classifier::decide( null );
 		}
-		$decision['bundles'] = $this->remember( $conversation, (array) $decision['bundles'], $stored )['bundles'];
+		$kept                = $this->remember( $conversation, (array) $decision['bundles'], $stored, (array) ( $decision['groups'] ?? array() ), $facts );
+		$decision['bundles'] = $kept['bundles'];
+		$decision['groups']  = $kept['groups'];
+		$decision['facts']   = $kept['facts'];
 		$decision['usage']   = $usage;
 		return $decision;
 	}
 
 	/**
-	 * Stores the bundles of a conversation (sticky while warm: 5 minutes = the prompt cache lifetime).
+	 * Stored route of a conversation.
+	 *
+	 * @param int $conversation Conversation.
+	 * @return array<string,mixed>
+	 */
+	private function stored( int $conversation ): array {
+		$stored = $conversation > 0 ? get_transient( self::ROUTE_TRANSIENT . $conversation ) : false;
+		return is_array( $stored ) ? $stored : array();
+	}
+
+	/**
+	 * Stores the route of a conversation: bundles and add-on groups are sticky while warm (5 minutes = the prompt cache
+	 * lifetime: tools only grow, so the cached prefix survives); facts stay for the conversation.
 	 *
 	 * @param int                 $conversation Conversation.
 	 * @param array<int,string>   $bundles      Bundles.
 	 * @param array<string,mixed> $stored       Previous route.
-	 * @return array{bundles:array<int,string>}
+	 * @param array<int,string>   $groups       Add-on tool groups.
+	 * @param array<string,mixed> $facts        Facts of this message (selection).
+	 * @return array{bundles:array<int,string>,groups:array<int,string>,facts:array<string,bool>}
 	 */
-	private function remember( int $conversation, array $bundles, array $stored = array() ): array {
+	private function remember( int $conversation, array $bundles, array $stored = array(), array $groups = array(), array $facts = array() ): array {
 		$warm    = ! empty( $stored['at'] ) && time() - (int) $stored['at'] < 300;
 		$bundles = Classifier::sticky( $bundles, $warm ? (array) ( $stored['bundles'] ?? array() ) : null );
+		$groups  = Classifier::sticky_groups( $groups, $warm ? (array) ( $stored['groups'] ?? array() ) : null );
+		$known   = (array) ( $stored['facts'] ?? array() );
+		$facts   = array(
+			'selection' => ! empty( $known['selection'] ) || ! empty( $facts['selection'] ),
+		);
 		if ( $conversation > 0 ) {
 			set_transient(
 				self::ROUTE_TRANSIENT . $conversation,
 				array(
 					'bundles' => $bundles,
+					'groups'  => $groups,
+					'facts'   => array_filter( $facts ),
 					'at'      => time(),
 				),
 				HOUR_IN_SECONDS
 			);
 		}
-		return array( 'bundles' => $bundles );
+		return array(
+			'bundles' => $bundles,
+			'groups'  => $groups,
+			'facts'   => array_filter( $facts ),
+		);
+	}
+
+	/**
+	 * Add-on groups whose tools the conversation already called (they stay offered: their calls are in the history).
+	 *
+	 * @param array<int,array<string,mixed>> $history   Messages.
+	 * @param array<int,array<string,mixed>> $extension Extension tool definitions.
+	 * @return array<int,string>
+	 */
+	private static function history_groups( array $history, array $extension ): array {
+		$group_of = array();
+		foreach ( $extension as $tool ) {
+			if ( '' !== (string) ( $tool['group'] ?? '' ) ) {
+				$group_of[ (string) $tool['name'] ] = (string) $tool['group'];
+			}
+		}
+		if ( ! $group_of ) {
+			return array();
+		}
+		$out = array();
+		foreach ( $history as $message ) {
+			foreach ( is_array( $message['content'] ?? null ) ? $message['content'] : array() as $block ) {
+				$name = (string) ( $block['name'] ?? '' );
+				if ( 'tool_use' === ( $block['type'] ?? '' ) && isset( $group_of[ $name ] ) ) {
+					$out[] = $group_of[ $name ];
+				}
+			}
+		}
+		return array_values( array_unique( $out ) );
+	}
+
+	/**
+	 * Whether a message of the conversation carries an uploaded image.
+	 *
+	 * @param array<int,array<string,mixed>> $history Messages.
+	 */
+	private static function has_image( array $history ): bool {
+		foreach ( $history as $message ) {
+			if ( 'user' === ( $message['role'] ?? '' ) && is_array( $message['content'] ?? null ) && ImageUploads::from_blocks( $message['content'] ) ) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	/**
@@ -593,17 +716,20 @@ class DirectClient implements LlmClient {
 	}
 
 	/**
-	 * The model asked for every tool.
+	 * The model's request_tools call: null = none; [] = every tool; else the add-on groups it named (known ones only).
 	 *
 	 * @param array<int,array<string,mixed>> $content Blocks.
+	 * @param array<int,string>              $known   Described groups of this request.
+	 * @return array<int,string>|null
 	 */
-	private static function asks_for_tools( array $content ): bool {
+	private static function requested_groups( array $content, array $known ): ?array {
 		foreach ( $content as $block ) {
 			if ( 'tool_use' === ( $block['type'] ?? '' ) && Classifier::REQUEST_TOOLS === ( $block['name'] ?? '' ) ) {
-				return true;
+				$asked = is_array( $block['input']['groups'] ?? null ) ? array_map( 'strval', $block['input']['groups'] ) : array();
+				return array_values( array_intersect( $asked, $known ) );
 			}
 		}
-		return false;
+		return null;
 	}
 
 	/**

@@ -16,11 +16,12 @@ defined( 'ABSPATH' ) || exit;
 
 /**
  * Opt-in only (Guidelines 5/7/11): nothing in the plugin is locked and the chat works the same either way. The card shows
- * only on the plugin's own screens, only to administrators, only once the AI key passed «Save and test». «Not now» hides it;
- * it comes back at most ONCE, 30 days later, and never after a second «Not now». Data leaves the site only when an
+ * only on the plugin's own screens, only to administrators, only once the AI key passed «Save and test». «Skip» hides it;
+ * it comes back at most ONCE, 30 days later, and never after a second «Skip». Data leaves the site only when an
  * administrator clicks «Create account»: the email (prefilled with the admin email, editable), the shop's address, the
- * separate news-and-offers choice (unticked by default) and the version of the consent text. The account is for being told
- * when Store Assistant Pro (not released yet) launches; AddSynapse sends no email today.
+ * separate news-and-offers choice (unticked by default) and the version of the consent text. The account lets the manager
+ * sign in to addsynapse.com (their sites in one place, where Store Assistant Pro is bought if they ever want it); the
+ * plugin works the same without it.
  */
 final class OptIn {
 
@@ -32,7 +33,7 @@ final class OptIn {
 	public const OPTION = 'addsynapse_assistant_optin';
 
 	/** Version of the consent text below (sent with «Create account», recorded by AddSynapse). */
-	public const CONSENT_VERSION = '2026-10-19b';
+	public const CONSENT_VERSION = '2026-10-20';
 
 	/** Days before a dismissed card is offered again (once). */
 	public const REOFFER_DAYS = 30;
@@ -85,8 +86,8 @@ final class OptIn {
 	}
 
 	/**
-	 * Sends the opt-in to AddSynapse — the ONLY place that does (from the card's form or the chat's «Get notified» dialog, both
-	 * after an administrator clicked «Create account»).
+	 * Sends the opt-in to AddSynapse — the ONLY place that does (from the card's form, after an administrator clicked
+	 * «Create account»).
 	 *
 	 * @param string $email     Email.
 	 * @param bool   $marketing News-and-offers box ticked.
@@ -159,35 +160,7 @@ final class OptIn {
 	}
 
 	/**
-	 * What the chat needs (the «Get notified» link + dialog under a «coming in Pro» reply). No secrets.
-	 *
-	 * @return array<string,mixed>
-	 */
-	public static function client_state(): array {
-		$connection = Connection::get();
-		return array(
-			'registered' => null !== $connection,
-			// «Get notified» only for administrators with a working AI key (the same moment the card appears).
-			'canCreate'  => null === $connection && OwnKeySection::can_manage() && KeyStore::active(),
-			'email'      => OwnKeySection::can_manage() ? (string) get_option( 'admin_email', '' ) : '',
-			'termsUrl'   => self::TERMS_URL,
-			'privacyUrl' => self::PRIVACY_URL,
-		);
-	}
-
-	/**
-	 * REST `POST /account/optin` (administrators, REST nonce): the chat dialog's «Create account».
-	 *
-	 * @param \WP_REST_Request $request Request.
-	 * @return \WP_REST_Response
-	 */
-	public static function rest_create( \WP_REST_Request $request ): \WP_REST_Response {
-		$result = self::create( sanitize_email( (string) $request['email'] ), (bool) $request['marketing'] );
-		return new \WP_REST_Response( $result + array( 'account' => self::client_state() ), 'created' === $result['status'] ? 200 : 400 );
-	}
-
-	/**
-	 * «Not now»: hides the card (it comes back once, REOFFER_DAYS later).
+	 * «Skip»: hides the card (it comes back once, REOFFER_DAYS later).
 	 */
 	public function handle_dismiss(): void {
 		if ( ! OwnKeySection::can_manage() ) {
@@ -269,7 +242,7 @@ final class OptIn {
 		}
 		$email = (string) get_option( 'admin_email', '' );
 		echo '<div class="aiops-connector__card aiops-optin aiops-optin--compact" id="addsynapse-assistant-optin">';
-		echo '<p class="aiops-optin__lead"><strong>' . esc_html__( 'Get notified first when Store Assistant Pro launches — with a launch discount. Create a free AddSynapse account.', 'addsynapse-store-assistant' ) . '</strong></p>';
+		echo '<p class="aiops-optin__lead"><strong>' . esc_html__( 'Optional: create a free AddSynapse account to manage your sites in one place on addsynapse.com. The assistant works the same without it.', 'addsynapse-store-assistant' ) . '</strong></p>';
 		echo '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '" class="aiops-optin__form">';
 		wp_nonce_field( self::ACTION_CREATE );
 		echo '<input type="hidden" name="action" value="' . esc_attr( self::ACTION_CREATE ) . '" />';
@@ -282,8 +255,8 @@ final class OptIn {
 		echo '<a href="' . esc_url( self::TERMS_URL ) . '" target="_blank" rel="noopener noreferrer">' . esc_html__( 'Terms', 'addsynapse-store-assistant' ) . '</a> · <a href="' . esc_url( self::PRIVACY_URL ) . '" target="_blank" rel="noopener noreferrer">' . esc_html__( 'Privacy', 'addsynapse-store-assistant' ) . '</a></p></details>';
 		echo '<p class="aiops-optin__actions">';
 		submit_button( __( 'Create account', 'addsynapse-store-assistant' ), 'primary', 'submit', false );
-		// «Not now» posts its own form (HTML form attribute), shown next to «Create account».
-		submit_button( __( 'Not now', 'addsynapse-store-assistant' ), 'secondary', 'submit', false, array( 'form' => 'addsynapse-assistant-optin-dismiss' ) );
+		// «Skip» posts its own form (HTML form attribute), shown next to «Create account».
+		submit_button( __( 'Skip', 'addsynapse-store-assistant' ), 'secondary', 'submit', false, array( 'form' => 'addsynapse-assistant-optin-dismiss' ) );
 		echo '</p></form>';
 		echo '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '" id="addsynapse-assistant-optin-dismiss" class="aiops-optin__dismiss">';
 		wp_nonce_field( self::ACTION_DISMISS, '_wpnonce', true, true );
@@ -304,7 +277,7 @@ final class OptIn {
 		echo '<h2>' . esc_html__( 'Your AddSynapse account is ready', 'addsynapse-store-assistant' ) . '</h2>';
 		/* translators: %s: email address. */
 		echo '<p>' . esc_html( sprintf( __( 'Account: %s. Set a password to sign in to addsynapse.com.', 'addsynapse-store-assistant' ), (string) $connection['email'] ) ) . '</p>';
-		echo '<p>' . esc_html__( 'We will let you know when Store Assistant Pro launches.', 'addsynapse-store-assistant' ) . '</p>';
+		echo '<p>' . esc_html__( 'Sign in to addsynapse.com to see your sites. Store Assistant Pro is there too, if you ever need it.', 'addsynapse-store-assistant' ) . '</p>';
 		echo '<p class="aiops-optin__actions">';
 		if ( '' !== $connection['portal_url'] ) {
 			echo '<a class="button" href="' . esc_url( (string) $connection['portal_url'] ) . '" target="_blank" rel="noopener noreferrer">' . esc_html__( 'Set a password', 'addsynapse-store-assistant' ) . '</a> ';

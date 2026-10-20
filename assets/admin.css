@@ -160,3 +160,40 @@
 	display: block;
 	margin-top: 6px;
 }
+
+/* 1.2.0: Store Assistant Pro card (Settings) and the one-time review request (plugin screens only). */
+.aiops-pro-card__list {
+	margin: 8px 0 12px;
+}
+.aiops-pro-card__badge {
+	display: inline-flex;
+	align-items: center;
+	padding: 0 6px 0 2px;
+	border-radius: 9px;
+	background: #f0f0f1;
+	color: #50575e;
+	font-size: 11px;
+	font-weight: 600;
+	line-height: 18px;
+}
+.aiops-pro-card__badge .dashicons {
+	width: 14px;
+	height: 14px;
+	font-size: 14px;
+	line-height: 1;
+}
+.aiops-review {
+	max-width: 760px;
+	margin: 12px 0;
+	border-left: 4px solid #00a32a;
+}
+.aiops-review p {
+	margin: 0 0 8px;
+}
+.aiops-review__actions {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 8px;
+	margin: 0;
+}

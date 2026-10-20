@@ -249,7 +249,7 @@ final class TermsPlanner extends Planner {
 				}
 				return new WP_Error(
 					'addsynapse_assistant_term_not_found',
-					sprintf( 'No such term in %1$s: %2$s. Nothing was planned. Only EXISTING terms can be assigned here: ask the manager whether they mean one of the existing terms (creating new categories, tags or brands is coming in Store Assistant Pro).', $taxonomy, implode( '; ', $parts ) )
+					sprintf( 'No such term in %1$s: %2$s. Nothing was planned. Only EXISTING terms can be assigned here: ask the manager whether they mean one of the existing terms (creating new categories, tags or brands is part of Store Assistant Pro).', $taxonomy, implode( '; ', $parts ) )
 				);
 			}//end if
 		}//end if

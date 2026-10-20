@@ -17,7 +17,6 @@ import Composer from './Composer';
 import EmptyState from './EmptyState';
 import AiModePicker from './AiModePicker';
 import SelectionBar from './SelectionBar';
-import { OptInDialog, ProOfferContext } from './ProOffer';
 import {
 	ApiError,
 	createConversation,
@@ -893,9 +892,6 @@ export default function App() {
 	/* ---------- render ---------- */
 
 	const turns = useMemo( () => buildTurns( messages ), [ messages ] );
-	// Optional AddSynapse account: «Get notified» on the FIRST «coming in Pro» reply of the conversation → dialog.
-	const [ account, setAccount ] = useState( settings.account || {} );
-	const [ optInOpen, setOptInOpen ] = useState( false );
 	const active = conversations.find( ( c ) => c.id === activeId );
 	const liveTurn = live.active
 		? {
@@ -908,323 +904,278 @@ export default function App() {
 		: null;
 	const showEmpty =
 		! activeId || ( ! threadLoading && ! turns.length && ! liveTurn );
-	const liveParts = live.active ? live.parts : null;
-	const proOffer = useMemo( () => {
-		const lists = turns.map( ( turn ) => turn.parts || [] );
-		if ( liveParts ) {
-			lists.push( liveParts );
-		}
-		let firstId = '';
-		for ( const parts of lists ) {
-			const hit = parts.find(
-				( part ) =>
-					part.data &&
-					typeof part.data === 'object' &&
-					part.data.status === 'pro_feature'
-			);
-			if ( hit ) {
-				firstId = hit.id || '';
-				break;
-			}
-		}
-		return { firstId, account, open: () => setOptInOpen( true ) };
-	}, [ turns, liveParts, account ] );
 	const notConfigured = status && status.connection_configured === false;
 
 	return (
-		<ProOfferContext.Provider value={ proOffer }>
-			<SelectionContext.Provider value={ activeId ? selectionApi : null }>
-				<div
-					className={ `aiops-app${
-						sidebarOpen ? ' is-sidebar-open' : ''
-					}` }
-				>
-					<Sidebar
-						conversations={ conversations }
-						loading={ listLoading }
-						activeId={ activeId }
-						search={ search }
-						onSearch={ setSearch }
-						onSelect={ select }
-						onNew={ newChat }
-						onRename={ rename }
-						onDelete={ setToDelete }
-						onClose={ () => setSidebarOpen( false ) }
-						busy={ busy }
-					/>
-					{ sidebarOpen && (
-						<button
-							type="button"
-							className="aiops-scrim"
-							aria-label={ __(
-								'Close',
-								'addsynapse-store-assistant'
-							) }
-							onClick={ () => setSidebarOpen( false ) }
-						/>
-					) }
-
-					<section
-						className={ `aiops-main${
-							dropping ? ' is-dropping' : ''
-						}` }
+		<SelectionContext.Provider value={ activeId ? selectionApi : null }>
+			<div
+				className={ `aiops-app${
+					sidebarOpen ? ' is-sidebar-open' : ''
+				}` }
+			>
+				<Sidebar
+					conversations={ conversations }
+					loading={ listLoading }
+					activeId={ activeId }
+					search={ search }
+					onSearch={ setSearch }
+					onSelect={ select }
+					onNew={ newChat }
+					onRename={ rename }
+					onDelete={ setToDelete }
+					onClose={ () => setSidebarOpen( false ) }
+					busy={ busy }
+				/>
+				{ sidebarOpen && (
+					<button
+						type="button"
+						className="aiops-scrim"
 						aria-label={ __(
-							'Chat',
+							'Close',
 							'addsynapse-store-assistant'
 						) }
-						{ ...dropProps }
-					>
-						{ dropping && (
-							<div className="aiops-dropzone" aria-hidden="true">
-								<div className="aiops-dropzone__inner">
-									<strong>
-										{ __(
-											'Drop the image here',
-											'addsynapse-store-assistant'
-										) }
-									</strong>
-									<span>
-										{ __(
-											'JPG, PNG or WebP — it goes to the media library and is attached to your next message.',
-											'addsynapse-store-assistant'
-										) }
-									</span>
-								</div>
-							</div>
-						) }
-						<header className="aiops-main__header">
-							<Button
-								className="aiops-main__menu"
-								icon={ <Icon icon={ menu } /> }
-								label={ __(
-									'Conversations',
-									'addsynapse-store-assistant'
-								) }
-								onClick={ () => setSidebarOpen( true ) }
-							/>
-							<h2 className="aiops-main__title">
-								{ active
-									? active.title ||
-									  __(
-											'New conversation',
-											'addsynapse-store-assistant'
-									  )
-									: __(
-											'Store Assistant',
-											'addsynapse-store-assistant'
-									  ) }
-							</h2>
-							{ settings.settingsUrl && (
-								<Button
-									className="aiops-main__settings"
-									icon={ <Icon icon={ cog } /> }
-									label={ __(
-										'Settings',
-										'addsynapse-store-assistant'
-									) }
-									href={ settings.settingsUrl }
-								/>
-							) }
-						</header>
-						{ optInOpen && (
-							<OptInDialog
-								account={ account }
-								onClose={ () => setOptInOpen( false ) }
-								onDone={ setAccount }
-							/>
-						) }
+						onClick={ () => setSidebarOpen( false ) }
+					/>
+				) }
 
-						{ notConfigured && status && status.ai_key && (
-							<AiModePicker
-								status={ status }
-								onSaved={ () => refreshStatus() }
-							/>
-						) }
-						{ notConfigured &&
-							! ( status && status.ai_key ) &&
-							! connectionNoticeHidden && (
-								<Notice
-									status="warning"
-									className="aiops-config-notice"
-									onRemove={ () =>
-										setConnectionNoticeHidden( true )
-									}
-								>
-									<strong>
-										{ __(
-											'The AI is not set up yet.',
-											'addsynapse-store-assistant'
-										) }
-									</strong>{ ' ' }
+				<section
+					className={ `aiops-main${
+						dropping ? ' is-dropping' : ''
+					}` }
+					aria-label={ __( 'Chat', 'addsynapse-store-assistant' ) }
+					{ ...dropProps }
+				>
+					{ dropping && (
+						<div className="aiops-dropzone" aria-hidden="true">
+							<div className="aiops-dropzone__inner">
+								<strong>
 									{ __(
-										'The AI answers once an administrator adds an AI provider key in Settings. Slash commands (type /help) already work.',
+										'Drop the image here',
 										'addsynapse-store-assistant'
-									) }{ ' ' }
-									{ settings.settingsUrl && (
-										<a href={ settings.settingsUrl }>
-											{ __(
-												'Settings',
-												'addsynapse-store-assistant'
-											) }
-										</a>
 									) }
-								</Notice>
-							) }
-
-						<div
-							className="aiops-thread"
-							ref={ threadRef }
-							onScroll={ onScroll }
-						>
-							{ threadLoading && ! turns.length && (
-								<div className="aiops-thread__loading">
-									<Spinner />
-								</div>
-							) }
-							{ showEmpty && ! threadLoading && (
-								<EmptyState
-									onPick={ ( s ) => send( s ) }
-									disabled={ busy }
-									siteType={ settings.siteType }
-								/>
-							) }
-							{ ! showEmpty && (
-								<div
-									className="aiops-thread__inner"
-									ref={ innerRef }
-								>
-									{ turns.map( ( turn ) => (
-										<MessageTurn
-											key={ turn.key }
-											turn={ turn }
-										/>
-									) ) }
-									{ liveTurn && (
-										<MessageTurn
-											turn={ liveTurn }
-											live
-											phase={ live.phase }
-										/>
+								</strong>
+								<span>
+									{ __(
+										'JPG, PNG or WebP — it goes to the media library and is attached to your next message.',
+										'addsynapse-store-assistant'
 									) }
-									{ notice && (
-										<Notice
-											status="info"
-											isDismissible={ false }
-											className="aiops-inline-notice"
-										>
-											{ notice }
-										</Notice>
-									) }
-									{ error && (
-										<div
-											className="aiops-error"
-											role="alert"
-										>
-											<span>{ error.message }</span>
-											{ error.retry && (
-												<Button
-													variant="secondary"
-													size="small"
-													onClick={ retry }
-													disabled={ busy }
-												>
-													{ __(
-														'Retry',
-														'addsynapse-store-assistant'
-													) }
-												</Button>
-											) }
-										</div>
-									) }
-								</div>
-							) }
-							{ showEmpty && error && (
-								<div className="aiops-thread__inner">
-									<div className="aiops-error" role="alert">
-										<span>{ error.message }</span>
-									</div>
-								</div>
-							) }
+								</span>
+							</div>
 						</div>
-
-						{ activeId && (
-							<SelectionBar
-								selection={ selection }
-								onToggle={ selectionApi.toggle }
-								onClear={ selectionApi.clear }
-								disabled={ busy }
-							/>
-						) }
-						<Composer
-							ref={ composerRef }
-							value={ input }
-							onChange={ setInput }
-							onSend={ () => send() }
-							onStop={ stop }
-							busy={ busy }
-							streaming={ streaming }
-							attachment={ attachment }
-							onAttach={
-								imageSettings.enabled ? attach : undefined
-							}
-							onPasteFiles={
-								imageSettings.enabled ? attachFiles : undefined
-							}
-							onRemoveAttachment={ removeAttachment }
-							voiceOptIn={ !! settings.voice }
-							locale={ settings.locale || '' }
-							userId={ settings.userId || 0 }
-						/>
-					</section>
-
-					{ toDelete && (
-						<Modal
-							title={ __(
-								'Delete conversation?',
+					) }
+					<header className="aiops-main__header">
+						<Button
+							className="aiops-main__menu"
+							icon={ <Icon icon={ menu } /> }
+							label={ __(
+								'Conversations',
 								'addsynapse-store-assistant'
 							) }
-							onRequestClose={ () => setToDelete( null ) }
-							size="small"
-						>
-							<p>
-								{ sprintf(
-									/* translators: %s: conversation title */
-									__(
-										'“%s” will be removed from your history.',
+							onClick={ () => setSidebarOpen( true ) }
+						/>
+						<h2 className="aiops-main__title">
+							{ active
+								? active.title ||
+								  __(
+										'New conversation',
 										'addsynapse-store-assistant'
-									),
-									toDelete.title ||
-										__(
-											'New conversation',
-											'addsynapse-store-assistant'
-										)
+								  )
+								: __(
+										'Store Assistant',
+										'addsynapse-store-assistant'
+								  ) }
+						</h2>
+						{ settings.settingsUrl && (
+							<Button
+								className="aiops-main__settings"
+								icon={ <Icon icon={ cog } /> }
+								label={ __(
+									'Settings',
+									'addsynapse-store-assistant'
 								) }
-							</p>
-							<div className="aiops-modal-actions">
-								<Button
-									variant="tertiary"
-									onClick={ () => setToDelete( null ) }
-								>
-									{ __(
-										'Cancel',
-										'addsynapse-store-assistant'
-									) }
-								</Button>
-								<Button
-									variant="primary"
-									isDestructive
-									onClick={ confirmDelete }
-								>
-									{ __(
-										'Delete',
-										'addsynapse-store-assistant'
-									) }
-								</Button>
-							</div>
-						</Modal>
+								href={ settings.settingsUrl }
+							/>
+						) }
+					</header>
+					{ notConfigured && status && status.ai_key && (
+						<AiModePicker
+							status={ status }
+							onSaved={ () => refreshStatus() }
+						/>
 					) }
-				</div>
-			</SelectionContext.Provider>
-		</ProOfferContext.Provider>
+					{ notConfigured &&
+						! ( status && status.ai_key ) &&
+						! connectionNoticeHidden && (
+							<Notice
+								status="warning"
+								className="aiops-config-notice"
+								onRemove={ () =>
+									setConnectionNoticeHidden( true )
+								}
+							>
+								<strong>
+									{ __(
+										'The AI is not set up yet.',
+										'addsynapse-store-assistant'
+									) }
+								</strong>{ ' ' }
+								{ __(
+									'The AI answers once an administrator adds an AI provider key in Settings. Slash commands (type /help) already work.',
+									'addsynapse-store-assistant'
+								) }{ ' ' }
+								{ settings.settingsUrl && (
+									<a href={ settings.settingsUrl }>
+										{ __(
+											'Settings',
+											'addsynapse-store-assistant'
+										) }
+									</a>
+								) }
+							</Notice>
+						) }
+
+					<div
+						className="aiops-thread"
+						ref={ threadRef }
+						onScroll={ onScroll }
+					>
+						{ threadLoading && ! turns.length && (
+							<div className="aiops-thread__loading">
+								<Spinner />
+							</div>
+						) }
+						{ showEmpty && ! threadLoading && (
+							<EmptyState
+								onPick={ ( s ) => send( s ) }
+								disabled={ busy }
+								siteType={ settings.siteType }
+							/>
+						) }
+						{ ! showEmpty && (
+							<div
+								className="aiops-thread__inner"
+								ref={ innerRef }
+							>
+								{ turns.map( ( turn ) => (
+									<MessageTurn
+										key={ turn.key }
+										turn={ turn }
+									/>
+								) ) }
+								{ liveTurn && (
+									<MessageTurn
+										turn={ liveTurn }
+										live
+										phase={ live.phase }
+									/>
+								) }
+								{ notice && (
+									<Notice
+										status="info"
+										isDismissible={ false }
+										className="aiops-inline-notice"
+									>
+										{ notice }
+									</Notice>
+								) }
+								{ error && (
+									<div className="aiops-error" role="alert">
+										<span>{ error.message }</span>
+										{ error.retry && (
+											<Button
+												variant="secondary"
+												size="small"
+												onClick={ retry }
+												disabled={ busy }
+											>
+												{ __(
+													'Retry',
+													'addsynapse-store-assistant'
+												) }
+											</Button>
+										) }
+									</div>
+								) }
+							</div>
+						) }
+						{ showEmpty && error && (
+							<div className="aiops-thread__inner">
+								<div className="aiops-error" role="alert">
+									<span>{ error.message }</span>
+								</div>
+							</div>
+						) }
+					</div>
+
+					{ activeId && (
+						<SelectionBar
+							selection={ selection }
+							onToggle={ selectionApi.toggle }
+							onClear={ selectionApi.clear }
+							disabled={ busy }
+						/>
+					) }
+					<Composer
+						ref={ composerRef }
+						value={ input }
+						onChange={ setInput }
+						onSend={ () => send() }
+						onStop={ stop }
+						busy={ busy }
+						streaming={ streaming }
+						attachment={ attachment }
+						onAttach={ imageSettings.enabled ? attach : undefined }
+						onPasteFiles={
+							imageSettings.enabled ? attachFiles : undefined
+						}
+						onRemoveAttachment={ removeAttachment }
+						voiceOptIn={ !! settings.voice }
+						locale={ settings.locale || '' }
+						userId={ settings.userId || 0 }
+					/>
+				</section>
+
+				{ toDelete && (
+					<Modal
+						title={ __(
+							'Delete conversation?',
+							'addsynapse-store-assistant'
+						) }
+						onRequestClose={ () => setToDelete( null ) }
+						size="small"
+					>
+						<p>
+							{ sprintf(
+								/* translators: %s: conversation title */
+								__(
+									'“%s” will be removed from your history.',
+									'addsynapse-store-assistant'
+								),
+								toDelete.title ||
+									__(
+										'New conversation',
+										'addsynapse-store-assistant'
+									)
+							) }
+						</p>
+						<div className="aiops-modal-actions">
+							<Button
+								variant="tertiary"
+								onClick={ () => setToDelete( null ) }
+							>
+								{ __( 'Cancel', 'addsynapse-store-assistant' ) }
+							</Button>
+							<Button
+								variant="primary"
+								isDestructive
+								onClick={ confirmDelete }
+							>
+								{ __( 'Delete', 'addsynapse-store-assistant' ) }
+							</Button>
+						</div>
+					</Modal>
+				) }
+			</div>
+		</SelectionContext.Provider>
 	);
 }

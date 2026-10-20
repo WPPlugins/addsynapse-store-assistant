@@ -87,7 +87,7 @@ final class AbilitiesRegistrar {
 		( new GetSeoAbility() )->register();
 		( new DescribePageAbility() )->register();
 		( new FindMediaAbility() )->register();
-		// A change this plugin cannot make → a clear «coming in Store Assistant Pro» answer (changes nothing).
+		// A change this plugin cannot make → a clear «part of Store Assistant Pro» answer with a «See Pro» link (changes nothing).
 		( new ComingInProAbility() )->register();
 		$has_woocommerce = Environment::has_woocommerce();
 		if ( $has_woocommerce ) {

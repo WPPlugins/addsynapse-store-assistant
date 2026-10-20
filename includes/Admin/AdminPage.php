@@ -142,8 +142,8 @@ final class AdminPage {
 					'siteType'    => Environment::site_type(),
 					'canSettings' => current_user_can( Config::settings_capability() ),
 					'voice'       => SettingsPage::voice_enabled(),
-					// Optional AddSynapse account: «Try Pro» button / dialog, offer under a Pro reply (no secrets).
-					'account'     => OptIn::client_state(),
+					// Links to the separate Store Assistant Pro add-on (none once another plugin provides it).
+					'pro'         => ProOffers::client_state(),
 					// Images from the chat: only when WordPress lets this user upload media.
 					'images'      => array(
 						'enabled'  => current_user_can( 'upload_files' ),
@@ -216,6 +216,7 @@ final class AdminPage {
 			echo '<div class="wrap"><h1>' . esc_html( 'Store Assistant' ) . '</h1>';
 			self::render_nav( 'settings' );
 			Announcements::render( 'settings' );
+			ReviewRequest::render( 'settings' );
 			( new SettingsPage() )->render();
 			echo '</div>';
 			return;
@@ -228,6 +229,7 @@ final class AdminPage {
 		// Inside a container: the chat screen hides stray admin notices that are direct children of the wrap.
 		echo '<div class="aiops-account-area">';
 		Announcements::render( 'chat' );
+		ReviewRequest::render( 'chat' );
 		OptIn::render( 'chat' );
 		echo '</div><div id="addsynapse-assistant-root" class="aiops-root"></div></div>';
 	}

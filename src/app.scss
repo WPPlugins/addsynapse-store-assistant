@@ -2780,31 +2780,36 @@ $break: 782px;
 	}
 
 	&__list {
-		margin: 0 0 8px 18px;
-		list-style: disc;
+		margin: 0 0 8px;
+		list-style: none;
+
+		li {
+			margin-bottom: 4px;
+		}
 	}
 
 	&__actions {
 		display: flex;
+		align-items: center;
 		gap: 16px;
 	}
 }
 
-// 1.1.0: optional AddSynapse account — «Get notified» under a «coming in Pro» reply, dialog.
-.aiops-pro-offer.components-button {
-	flex-basis: 100%;
-	justify-content: flex-start;
+// 1.2.0: Store Assistant Pro links («See Pro», the «Pro» badge).
+.aiops-pro-link.components-button {
+	text-decoration: none;
 }
-.aiops-optin-dialog {
-	max-width: 560px;
-	.aiops-optin__privacy {
-		margin: 12px 0;
-		color: #50575e;
-		summary {
-			cursor: pointer;
-		}
-	}
-	.components-base-control {
-		margin-bottom: 12px;
-	}
+
+.aiops-pro-badge {
+	display: inline-flex;
+	align-items: center;
+	gap: 1px;
+	padding: 0 6px 0 2px;
+	border-radius: 9px;
+	background: #f0f0f1;
+	color: #50575e;
+	font-size: 11px;
+	font-weight: 600;
+	line-height: 18px;
+	vertical-align: middle;
 }

@@ -12,6 +12,8 @@ use Addsynapse\StoreAssistant\Admin\AddsynapseMenu;
 use Addsynapse\StoreAssistant\Admin\AdminPage;
 use Addsynapse\StoreAssistant\Admin\SettingsPage;
 use Addsynapse\StoreAssistant\Admin\OwnKeySection;
+use Addsynapse\StoreAssistant\Admin\ProOffers;
+use Addsynapse\StoreAssistant\Admin\ReviewRequest;
 use Addsynapse\StoreAssistant\Admin\AdminBarLink;
 use Addsynapse\StoreAssistant\Account\Announcements;
 use Addsynapse\StoreAssistant\Account\OptIn;
@@ -96,6 +98,9 @@ final class Plugin {
 			// Optional AddSynapse account (opt-in card) and short announcements — the plugin's own screens only.
 			$list[] = new OptIn();
 			$list[] = new Announcements();
+			// Links to the separate Store Assistant Pro add-on (menu item, Plugins row) and the one-time review request.
+			$list[] = new ProOffers();
+			$list[] = new ReviewRequest();
 		}
 		return $list;
 	}

@@ -16,8 +16,13 @@ defined( 'ABSPATH' ) || exit;
  *
  * Filters (all receive the context `array{conversation_id:int,user_id:int}`):
  *  - `addsynapse_assistant_extension_tools` (array $tools, array $context): extra tool definitions for THIS request,
- *    each `array{name:string,description:string,input_schema:array,label?:string}`; `name` = lower-case letters, digits
- *    and `_` (max 64). A definition with the name of a built-in tool replaces that tool in this request.
+ *    each `array{name:string,description:string,input_schema:array,label?:string,group?:string}`; `name` = lower-case
+ *    letters, digits and `_` (max 64). A definition with the name of a built-in tool replaces that tool in this request.
+ *  - `addsynapse_assistant_extension_groups` (array $groups, array $context): what each tool `group` does
+ *    (`array<string,string>` group → one line for the router, English). Lean requests (1.2.0): a tool of a DESCRIBED
+ *    group reaches the AI only when the router picks its group for the conversation (or the AI loads it with
+ *    `request_tools`, or the history already used it); a tool without a group, or of a group with no description, is
+ *    always offered (as before).
  *  - `addsynapse_assistant_system_addendum` (string $text, array $context): extra instructions appended to the system
  *    prompt of this request (plain text, capped at MAX_ADDENDUM characters).
  *  - `addsynapse_assistant_extension_tool_result` (null $result, string $name, array $input, array $context): runs a call
@@ -29,15 +34,16 @@ defined( 'ABSPATH' ) || exit;
  */
 final class Extensions {
 
-	public const PREFIX       = 'ext__';
-	public const MAX_TOOLS    = 64;
-	public const MAX_ADDENDUM = 60000;
-	public const NAME_PATTERN = '/^[a-z][a-z0-9_]{0,63}$/D';
+	public const PREFIX        = 'ext__';
+	public const MAX_TOOLS     = 64;
+	public const MAX_ADDENDUM  = 60000;
+	public const NAME_PATTERN  = '/^[a-z][a-z0-9_]{0,63}$/D';
+	public const GROUP_PATTERN = '/^[a-z][a-z0-9_]{0,31}$/D';
 
 	/**
 	 * Tools of this request, by name.
 	 *
-	 * @var array<string,array{name:string,description:string,input_schema:array<string,mixed>,label:string}>
+	 * @var array<string,array{name:string,description:string,input_schema:array<string,mixed>,label:string,group:string}>
 	 */
 	private array $tools = array();
 
@@ -47,6 +53,13 @@ final class Extensions {
 	 * @var string
 	 */
 	private string $addendum = '';
+
+	/**
+	 * Described tool groups of this request (group → what it does).
+	 *
+	 * @var array<string,string>
+	 */
+	private array $groups = array();
 
 	/**
 	 * Context passed to the filters.
@@ -88,6 +101,21 @@ final class Extensions {
 		 */
 		$addendum       = apply_filters( 'addsynapse_assistant_system_addendum', '', $self->context );
 		$self->addendum = is_string( $addendum ) ? trim( wp_check_invalid_utf8( mb_substr( $addendum, 0, self::MAX_ADDENDUM ) ) ) : '';
+		if ( $self->tools ) {
+			/**
+			 * What each extension tool group does (see the class docblock).
+			 *
+			 * @param array<string,string>                   $groups  Group → one line (English).
+			 * @param array{conversation_id:int,user_id:int} $context Request.
+			 */
+			$groups = apply_filters( 'addsynapse_assistant_extension_groups', array(), $self->context );
+			$used   = array_flip( array_filter( array_column( $self->tools, 'group' ) ) );
+			foreach ( is_array( $groups ) ? $groups : array() as $name => $text ) {
+				if ( is_string( $name ) && isset( $used[ $name ] ) && is_string( $text ) && '' !== trim( $text ) ) {
+					$self->groups[ $name ] = sanitize_text_field( mb_substr( $text, 0, 300 ) );
+				}
+			}
+		}
 		return $self;
 	}
 
@@ -111,9 +139,10 @@ final class Extensions {
 	}
 
 	/**
-	 * Tool definitions in the shape of ToolRegistry::definitions(), names prefixed with PREFIX.
+	 * Tool definitions in the shape of ToolRegistry::definitions(), names prefixed with PREFIX, plus `group` (a
+	 * described group, or '' = always offered).
 	 *
-	 * @return array<int,array{name:string,description:string,input_schema:array<string,mixed>}>
+	 * @return array<int,array{name:string,description:string,input_schema:array<string,mixed>,group:string}>
 	 */
 	public function definitions(): array {
 		$out = array();
@@ -122,9 +151,19 @@ final class Extensions {
 				'name'         => self::PREFIX . $name,
 				'description'  => $tool['description'],
 				'input_schema' => $tool['input_schema'],
+				'group'        => isset( $this->groups[ $tool['group'] ] ) ? $tool['group'] : '',
 			);
 		}
 		return $out;
+	}
+
+	/**
+	 * Described tool groups of this request (group → what it does).
+	 *
+	 * @return array<string,string>
+	 */
+	public function groups(): array {
+		return $this->groups;
 	}
 
 	/**
@@ -219,7 +258,7 @@ final class Extensions {
 	 * Validates one definition.
 	 *
 	 * @param mixed $tool Definition.
-	 * @return array{name:string,description:string,input_schema:array<string,mixed>,label:string}|null
+	 * @return array{name:string,description:string,input_schema:array<string,mixed>,label:string,group:string}|null
 	 */
 	private static function clean_tool( $tool ): ?array {
 		if ( ! is_array( $tool ) || ! is_string( $tool['name'] ?? null ) || ! preg_match( self::NAME_PATTERN, $tool['name'] ) ) {
@@ -237,6 +276,7 @@ final class Extensions {
 			'description'  => is_string( $tool['description'] ?? null ) ? mb_substr( wp_check_invalid_utf8( $tool['description'] ), 0, 4000 ) : '',
 			'input_schema' => $schema,
 			'label'        => is_string( $tool['label'] ?? null ) ? mb_substr( sanitize_text_field( $tool['label'] ), 0, 80 ) : '',
+			'group'        => is_string( $tool['group'] ?? null ) && preg_match( self::GROUP_PATTERN, $tool['group'] ) ? $tool['group'] : '',
 		);
 	}
 }

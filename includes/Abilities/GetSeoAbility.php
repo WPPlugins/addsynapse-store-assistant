@@ -183,7 +183,7 @@ final class GetSeoAbility {
 				array_filter(
 					array(
 						'Slugs/URLs are never changed from here (risk of broken links).',
-						'Pages and posts: their SEO is shown here; changing it is coming in Store Assistant Pro.',
+						'Pages and posts: their SEO is shown here; changing it is part of Store Assistant Pro.',
 						$adapter->supports_seo() ? '' : ( $has_wc ? SeoPlanner::unsupported( $adapter ) : SeoPlanner::unsupported_post( $adapter ) ),
 					)
 				)

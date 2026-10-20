@@ -72,8 +72,9 @@ function addsynapse_assistant_uninstall_site() {
 		$wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->options} WHERE option_name LIKE %s", $pattern ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 	}
 
-	// Announcements each user dismissed.
+	// Announcements each user dismissed; the answer to the one-time review request (1.2.0).
 	delete_metadata( 'user', 0, 'addsynapse_assistant_dismissed_announcements', '', true );
+	delete_metadata( 'user', 0, 'addsynapse_assistant_review_dismissed', '', true );
 
 	// Chat images never used by an approved change («pending»): the attachment and every size of its file.
 	$pending = $wpdb->get_col( $wpdb->prepare( "SELECT post_id FROM {$wpdb->postmeta} WHERE meta_key = %s", '_addsynapse_assistant_pending' ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching

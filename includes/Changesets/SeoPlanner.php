@@ -95,7 +95,7 @@ final class SeoPlanner extends Planner {
 			}
 			$post = get_post( $id );
 			if ( $post && in_array( $post->post_type, array( 'page', 'post' ), true ) ) {
-				// SEO of pages and posts is site work (coming in Store Assistant Pro); here only products.
+				// SEO of pages and posts is site work (part of Store Assistant Pro); here only products.
 				return self::one_item_only( 'pages' );
 			}
 			$product = function_exists( 'wc_get_product' ) ? wc_get_product( $id ) : null;

@@ -7,6 +7,7 @@
 
 namespace Addsynapse\StoreAssistant\Agent;
 
+use Addsynapse\StoreAssistant\Admin\ProOffers;
 use Addsynapse\StoreAssistant\Abilities\AbilitiesRegistrar;
 use Addsynapse\StoreAssistant\Data\MessageRepository;
 use Addsynapse\StoreAssistant\Environment;
@@ -317,11 +318,15 @@ class CommandRunner {
 	}
 
 	/**
-	 * «Coming soon in Store Assistant Pro» (information only: these tools are not part of this plugin).
+	 * «Store Assistant Pro» (information only: these tools are not part of this plugin), each line marked 🔒, with a link
+	 * to the add-on's page. Nothing once another plugin provides the Pro features.
 	 *
 	 * @param bool $shop WooCommerce is active.
 	 */
 	private static function pro_text( bool $shop ): string {
+		if ( ! ProOffers::shown() ) {
+			return '';
+		}
 		$items = array();
 		if ( $shop ) {
 			$items[] = __( 'bulk changes for a whole category, a brand or the whole catalogue', 'addsynapse-store-assistant' );
@@ -333,7 +338,10 @@ class CommandRunner {
 		$items[] = __( 'menus, page texts, sections and banners, posts and blog categories', 'addsynapse-store-assistant' );
 		$items[] = __( 'SEO and image alt texts at scale, content writing', 'addsynapse-store-assistant' );
 		$items[] = __( 'a full change history', 'addsynapse-store-assistant' );
-		$text    = "\n**" . __( 'Coming soon in Store Assistant Pro', 'addsynapse-store-assistant' ) . '** — ' . __( 'a separate add-on:', 'addsynapse-store-assistant' ) . ' ' . implode( '; ', $items ) . ".\n";
-		return $text;
+		$text    = "\n**" . __( 'Store Assistant Pro', 'addsynapse-store-assistant' ) . '** — ' . __( 'a separate add-on:', 'addsynapse-store-assistant' ) . "\n";
+		foreach ( $items as $item ) {
+			$text .= '- 🔒 ' . $item . "\n";
+		}
+		return $text . "\n[" . __( 'See Pro', 'addsynapse-store-assistant' ) . '](' . ProOffers::url( 'chat-help' ) . ")\n";
 	}
 }

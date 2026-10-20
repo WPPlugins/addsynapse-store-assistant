@@ -8,6 +8,7 @@
 namespace Addsynapse\StoreAssistant\Changesets;
 
 use Addsynapse\StoreAssistant\Abilities\Shared;
+use Addsynapse\StoreAssistant\Admin\ProOffers;
 use WP_Error;
 
 defined( 'ABSPATH' ) || exit;
@@ -219,28 +220,42 @@ abstract class Planner {
 
 	/**
 	 * The answer to a request this plugin does not prepare: a change of several items at once (`bulk`) or a kind of
-	 * change it has no tool for. A normal tool result (not an error): the chat shows it as a short notice (Store Assistant
-	 * Pro is not released yet: no link), and the model tells the manager in one sentence and offers to change ONE item now.
+	 * change it has no tool for. A normal tool result (not an error): the chat shows it as a short notice with a «See Pro»
+	 * button (the link is built by the chat, per feature), and the model tells the manager in one sentence and offers what
+	 * it can do now. Once another plugin provides the Pro features (Admin\ProOffers::shown() false) the answer names no
+	 * add-on.
 	 *
-	 * @param string $feature bulk | attributes | terms | fields | pages | other.
+	 * @param string $feature One of ComingInProAbility::FEATURES.
 	 * @return array<string,string>
 	 */
 	public static function one_item_only( string $feature = 'bulk' ): array {
 		$messages = array(
-			'bulk'       => __( 'One change covers one product here. Bulk changes (many products at once, by category or brand, or the whole catalogue) are coming in Store Assistant Pro, a separate add-on.', 'addsynapse-store-assistant' ),
-			'attributes' => __( 'Product attributes and variations are coming in Store Assistant Pro, a separate add-on.', 'addsynapse-store-assistant' ),
-			'terms'      => __( 'Creating, renaming or merging categories, tags and brands is coming in Store Assistant Pro, a separate add-on. Here a product can be assigned to existing ones.', 'addsynapse-store-assistant' ),
-			'fields'     => __( 'Here you can change a product\'s name, short description, description and images. Other product settings are coming in Store Assistant Pro, a separate add-on.', 'addsynapse-store-assistant' ),
-			'pages'      => __( 'Changes to pages, posts, menus and the site\'s appearance are coming in Store Assistant Pro, a separate add-on. Here the assistant can read them and change one product at a time.', 'addsynapse-store-assistant' ),
-			'other'      => __( 'This is coming in Store Assistant Pro, a separate add-on. Here the assistant reads your site and changes one product at a time.', 'addsynapse-store-assistant' ),
+			'bulk'       => __( 'Changing many products at once (a category, a brand or the whole catalogue) is part of Store Assistant Pro. Here one change covers one product.', 'addsynapse-store-assistant' ),
+			'attributes' => __( 'Product attributes and variations are part of Store Assistant Pro.', 'addsynapse-store-assistant' ),
+			'terms'      => __( 'Creating, renaming or merging categories, tags and brands is part of Store Assistant Pro. Here a product can be assigned to existing ones.', 'addsynapse-store-assistant' ),
+			'fields'     => __( 'Here you can change a product\'s name, short description, description and images. Other product settings are part of Store Assistant Pro.', 'addsynapse-store-assistant' ),
+			'pages'      => __( 'Editing pages, posts, menus and the look of the site is part of Store Assistant Pro. Here the assistant can read them.', 'addsynapse-store-assistant' ),
+			'coupons'    => __( 'Coupons are part of Store Assistant Pro.', 'addsynapse-store-assistant' ),
+			'orders'     => __( 'Creating or changing orders is part of Store Assistant Pro.', 'addsynapse-store-assistant' ),
+			'import'     => __( 'Updating products from a CSV file is part of Store Assistant Pro.', 'addsynapse-store-assistant' ),
+			'content'    => __( 'Writing new posts and pages, and alt texts or SEO texts for many items at once, is part of Store Assistant Pro.', 'addsynapse-store-assistant' ),
+			'history'    => __( 'The full change history, with Undo of older changes, is part of Store Assistant Pro.', 'addsynapse-store-assistant' ),
+			'other'      => __( 'This is part of Store Assistant Pro. Here the assistant reads your site and changes one product at a time.', 'addsynapse-store-assistant' ),
 		);
 		$feature  = isset( $messages[ $feature ] ) ? $feature : 'bulk';
-		$message  = $messages[ $feature ];
+		if ( ! ProOffers::shown() ) {
+			return array(
+				'status'  => 'pro_feature',
+				'feature' => $feature,
+				'message' => __( 'This change is not available in this chat.', 'addsynapse-store-assistant' ),
+				'note'    => 'Nothing was prepared. Tell the manager in one short sentence that this chat cannot make this change, then offer what you can do now. Do not split the request into many single-item changes on your own.',
+			);
+		}
 		return array(
 			'status'  => 'pro_feature',
 			'feature' => $feature,
-			'message' => $message,
-			'note'    => 'Nothing was prepared. Store Assistant Pro is not available yet. Tell the manager this in one short sentence, then offer to prepare the change for ONE item now. Do not split the request into many single-item changes on your own.',
+			'message' => $messages[ $feature ],
+			'note'    => 'Nothing was prepared. Tell the manager in one short sentence that this is part of Store Assistant Pro, a separate add-on; the chat shows a "See Pro" button under your answer, so add no link. Then offer what you can do now (reading, or changing ONE product). Do not split the request into many single-item changes on your own.',
 		);
 	}
 }

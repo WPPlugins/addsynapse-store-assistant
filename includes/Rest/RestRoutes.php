@@ -407,27 +407,6 @@ final class RestRoutes {
 			);
 		}
 
-		// The optional AddSynapse account from the chat's «Try Pro» dialog (administrators; same as the Settings card).
-		register_rest_route(
-			self::NAMESPACE,
-			'/account/optin',
-			array(
-				'methods'             => WP_REST_Server::CREATABLE,
-				'callback'            => array( \Addsynapse\StoreAssistant\Account\OptIn::class, 'rest_create' ),
-				'permission_callback' => array( AiKeyController::class, 'permission' ),
-				'args'                => array(
-					'email'     => array(
-						'type'     => 'string',
-						'required' => true,
-					),
-					'marketing' => array(
-						'type'    => 'boolean',
-						'default' => false,
-					),
-				),
-			)
-		);
-
 		register_rest_route(
 			self::NAMESPACE,
 			'/conversations/(?P<id>\d+)/stream',

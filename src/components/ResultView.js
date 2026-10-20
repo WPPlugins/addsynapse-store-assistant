@@ -34,7 +34,7 @@ import { MenusView } from './MenuViews';
 import { SeoView } from './SeoViews';
 import { useSelection } from '../lib/selection';
 import { errorMessage, resultPage } from '../lib/api';
-import { ProOfferCta } from './ProOffer';
+import { SeeProLink } from './ProOffer';
 
 function EditLink( { href, children, label, kind = '', id = 0 } ) {
 	const safe = objectLink( href, kind, id );
@@ -1487,24 +1487,24 @@ function CustomersResult( { data } ) {
 }
 
 /**
- * A request this plugin does not do (e.g. a bulk change): a calm note that it is coming in Store Assistant Pro.
+ * A request only Store Assistant Pro makes (e.g. a bulk change): a calm note with a «See Pro» link to the add-on's page.
  *
  * @param {Object} props      Props.
  * @param {Object} props.data { status: 'pro_feature', feature, message }.
- * @param {Object} props.part Tool part (the first Pro reply of a conversation carries the account offer).
  * @return {JSX.Element} Notice.
  */
-function ProFeatureNotice( { data, part } ) {
+function ProFeatureNotice( { data } ) {
+	const feature = String( data.feature || 'other' ).replace( /[^a-z]/g, '' );
 	return (
 		<div className="aiops-pro-note">
 			<p className="aiops-pro-note__text">
 				{ data.message ||
 					__(
-						'Bulk changes are coming in Store Assistant Pro.',
+						'This is part of Store Assistant Pro.',
 						'addsynapse-store-assistant'
 					) }
 			</p>
-			<ProOfferCta part={ part } />
+			<SeeProLink spot={ `chat-${ feature || 'other' }` } />
 		</div>
 	);
 }

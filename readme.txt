@@ -6,7 +6,7 @@ Tested up to: 7.1
 Requires PHP: 7.4
 WC requires at least: 8.0
 WC tested up to: 11.1
-Stable tag: 1.1.2
+Stable tag: 1.2.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -30,9 +30,11 @@ the plugin works, with no account and no plan. It edits one product at a time. Y
 what you use; the Settings screen shows an estimate of your usage and cost. The key is stored encrypted on your site
 (or in `wp-config.php`) and is never sent to the browser or to AddSynapse.
 
-No account is needed. After your key works, the plugin offers once to create a free AddSynapse account, to be told first
-when Store Assistant Pro launches — optional, nothing is locked without it, and nothing is sent unless you click
-**Create account**.
+No account is needed. After your key works, the plugin offers once an optional, free AddSynapse account (your sites in
+one place on addsynapse.com) — nothing is locked without it, and nothing is sent unless you click **Create account**.
+
+Each question costs as little as possible on your key: the assistant sends the AI a small set of instructions and only
+the tools that question needs.
 
 Everything that runs on your site also works before you add a key: slash commands (for example `/report low_stock` or
 `/price id=123 -10%`), the previews, Approve, Undo and voice input.
@@ -59,26 +61,30 @@ Each change covers one product. When you ask for many at once, the assistant say
 
 The assistant reads your pages (Gutenberg and Elementor), menus, media library and the SEO of pages and posts, so you
 can ask "which pages have no meta description?" or "what is in the main menu?". On a plain WordPress site (no
-WooCommerce) it answers about the site; changes to pages, posts and menus are planned for Store Assistant Pro.
+WooCommerce) it answers about the site; changes to pages, posts and menus are part of Store Assistant Pro.
 
 = Voice and images =
 
 Type or speak (optional voice input, off by default) and attach an image to a message. The AI can see an attached image
 (a reduced copy; you can turn this off in Settings).
 
-= Coming soon: Store Assistant Pro =
+= Store Assistant Pro (separate add-on) =
 
-AddSynapse is preparing **Store Assistant Pro**, a separate add-on for work beyond single products, for example:
+**Store Assistant Pro** is a separate, paid add-on by AddSynapse for work beyond single products, for example:
 
 * **AI blog writing:** drafting blog posts and other content.
 * **Bulk edit products:** bulk price changes by category or brand, CSV imports.
 * **SEO at scale:** SEO titles, meta descriptions and image alt text for many products, pages and posts at once.
-* **Pages and menus:** editing pages, sections, menus and the site's appearance.
+* **Pages, menus and design:** editing pages, sections, menus and the site's appearance by chat.
 * **Catalog and sales:** managing categories, tags, brands, attributes and variations, coupons and orders, and a full
   change history.
+* **Our AI included:** use it without an API key of your own.
 
-It is not released yet, it is not included in this plugin and this plugin does not check for it: everything described
-in the sections above is complete and free.
+Plans: https://addsynapse.com/store-assistant. Pro is not included in this plugin and this plugin does not check for it:
+everything described in the sections above is complete and free. The plugin shows plain links to the add-on's page
+only on its own screens: "Upgrade to Pro" in the AddSynapse menu, "Get Pro" in its row of the Plugins list, a card in
+Settings, the Pro list of the chat's start screen and a "See Pro" button when you ask the chat for something only Pro
+does. An installed Pro add-on can turn these links off.
 
 = Every change is a preview a person approves =
 
@@ -116,7 +122,9 @@ Approve and Undo run on your site and need no service. **Nothing is sent anywher
 and test"** in AddSynapse → Store Assistant → Settings, next to a text that lists what is sent. Before that, the plugin
 makes no outgoing requests and schedules no recurring background tasks (only local one-off work that you start
 yourself: applying a large approved change, or removing an image you uploaded in the chat and never used). The plugin
-contacts AddSynapse only if an administrator creates an AddSynapse account from the plugin (section 4).
+contacts AddSynapse only if an administrator creates an AddSynapse account from the plugin (section 4). The links to
+the Store Assistant Pro page on addsynapse.com and to the plugin's reviews on WordPress.org are ordinary links that
+your browser opens when you click them; the plugin sends nothing for them.
 
 = 1. Anthropic API — api.anthropic.com (only with your own Anthropic key) =
 
@@ -158,9 +166,8 @@ Microsoft, Safari: Apple or on the device), under the vendor's own terms:
 = 4. AddSynapse — api.addsynapse.com (only if you create an account from the plugin) =
 
 Optional. After "Save and test" succeeds, the plugin's own screens show a card "Create a free AddSynapse account"
-(with "Not now"; it comes back at most once, 30 days later), to be told first when Store Assistant Pro launches; the
-first "coming in Store Assistant Pro" reply of a chat conversation has a small "Get notified" link to the same form.
-Nothing is sent unless an administrator clicks **Create account**. Then, once: the email in the card (prefilled with the site's admin email, editable), the shop's
+(with "Skip"; it comes back at most once, 30 days later). Nothing is sent unless an administrator clicks
+**Create account**. Then, once: the email in the card (prefilled with the site's admin email, editable), the shop's
 address (home URL), whether the "Send me news and offers" box was ticked (unticked by default; news are emailed only
 after you confirm a link AddSynapse sends) and the version of the consent text. AddSynapse creates the account and
 returns a site key (stored encrypted). Your AI key, chats and store data are never
@@ -187,8 +194,7 @@ deleting the plugin) stops this.
 = Do I need an account? =
 
 No. The plugin works fully with only your own AI key; it needs no AddSynapse account and never asks for one to unlock
-anything. Creating a free account from the card in the plugin is optional (to be told when Store Assistant Pro
-launches); see External services, section 4.
+anything. Creating a free account from the card in the plugin is optional; see External services, section 4.
 
 = How can I test the plugin without paying? =
 
@@ -205,14 +211,14 @@ provider. It edits one product at a time. Slash commands, previews, Approve, Und
 
 = What is Store Assistant Pro? =
 
-A separate add-on AddSynapse is preparing for work beyond single products (bulk changes, CSV imports, managing
-categories, attributes and variations, coupons and orders, the site's appearance, new content, a full change history,
-and an AI without your own key). It is not released yet. This plugin does not contain it, does not check for it and
-works the same without it.
+A separate, paid add-on by AddSynapse for work beyond single products (bulk changes, CSV imports, managing categories,
+attributes and variations, coupons and orders, the site's appearance, new content, a full change history, and an AI
+without your own key): https://addsynapse.com/store-assistant. This plugin does not contain it, does not check for it
+and works the same without it.
 
 = Can I change many products at once? =
 
-This plugin edits one product at a time (one preview per product). Bulk editing is coming in Store Assistant Pro, a
+This plugin edits one product at a time (one preview per product). Bulk editing is part of Store Assistant Pro, a
 separate add-on.
 
 = Can it write product descriptions? =
@@ -223,7 +229,7 @@ The new text appears in a preview; nothing changes until you click **Approve**, 
 = Can it write blog posts? =
 
 Not in this plugin. It reads your posts and their SEO, but writing and publishing blog posts (AI blog writing) is
-planned for Store Assistant Pro, a separate add-on that is not released yet.
+part of Store Assistant Pro, a separate add-on.
 
 = Where is my AI key stored, and who sees it? =
 
@@ -234,7 +240,8 @@ AddSynapse. **Remove my key** (or deleting the plugin) deletes it.
 
 = How much does my own key cost? =
 
-It depends on the model and on how much you use the chat. Settings shows the calls, tokens and an estimated cost for this
+It depends on the model and on how much you use the chat. Each question sends the AI only the instructions and tools
+it needs, and repeated parts are cached by your provider where it supports that. Settings shows the calls, tokens and an estimated cost for this
 month and the last 30 days, at the providers' list prices; your provider's dashboard shows the real bill. The default
 models are the small, fast ones.
 
@@ -285,6 +292,19 @@ The readable source of the admin app is in the `src/` folder of the plugin, with
 `package-lock.json` (exact versions). Build it with `npm ci && npm run build` (output in `build/`).
 
 == Changelog ==
+
+= 1.2.0 =
+* Leaner AI requests: a much smaller set of instructions, and only the tools and instructions a question needs (for
+  example about half the input of 1.1.2 for a stock question, about a quarter for a request only Pro does) — less cost
+  per question on your own key.
+* Store Assistant Pro, the separate add-on, is available: "Upgrade to Pro" in the AddSynapse menu, "Get Pro" in the
+  Plugins list, a card in Settings, and a "See Pro" button when you ask for something only Pro does. Nothing in this
+  plugin is locked, and an installed Pro add-on can turn the links off.
+* The optional account card says what the account is for and has "Skip"; the chat no longer shows "Get notified".
+* After ten approved changes, a one-time request for a review on WordPress.org, only on the plugin's own screen;
+  "Don't ask again" hides it for good.
+* For developers: tools of another plugin can declare a `group` (described with the filter
+  `addsynapse_assistant_extension_groups`); a group reaches the AI only when a question needs it.
 
 = 1.1.2 =
 * Improved description.
@@ -337,6 +357,9 @@ The readable source of the admin app is in the `src/` folder of the plugin, with
   everyone, without a connection or subscription.
 
 == Upgrade Notice ==
+
+= 1.2.0 =
+Lower AI cost per question (leaner requests), links to the new Store Assistant Pro add-on, and a one-time review request.
 
 = 1.1.2 =
 A shortcut to the assistant in the admin bar and a clearer description.

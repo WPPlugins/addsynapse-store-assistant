@@ -185,6 +185,7 @@ class AgentLoop {
 			$base['addsynapse_assistant_extension'] = array(
 				'tools'    => $extensions->definitions(),
 				'addendum' => $extensions->addendum(),
+				'groups'   => $extensions->groups(),
 			);
 		}
 		$max_iter  = Config::max_iterations();

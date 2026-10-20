@@ -36,10 +36,12 @@ final class AddsynapseMenu {
 
 	/** Display order per slug (shared contract); unknown slugs → 100, in registration order. */
 	public const ORDER = array(
-		'addsynapse'                 => 0,
-		'addsynapse-store-assistant' => 10,
-		'addsynapse-search'          => 20,
-		'addsynapse-connector'       => 30,
+		'addsynapse'                     => 0,
+		'addsynapse-store-assistant'     => 10,
+		// «Upgrade to Pro» of the Store Assistant (a link to the add-on's page), right below it.
+		'addsynapse-store-assistant-pro' => 11,
+		'addsynapse-search'              => 20,
+		'addsynapse-connector'           => 30,
 	);
 
 	/** Menu position (string: avoids the WooCommerce Marketing slot at 58). */
