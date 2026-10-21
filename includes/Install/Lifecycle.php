@@ -6,7 +6,9 @@
  *    action. An image uploaded before that gets one local cleanup run when it would expire (ImageUploads::store()).
  *  - ready_now(): the recurring local cleanup of pending chat images is scheduled (ImageUploads::schedule()). It never
  *    calls anything outside the site.
- *  - deactivate(): everything is unscheduled (safe without WooCommerce / Action Scheduler).
+ *  - Usage::allow(): the weekly anonymous usage call, only after an administrator clicked «Allow» (off by default).
+ *  - deactivate(): everything is unscheduled (safe without WooCommerce / Action Scheduler), and every AddSynapse
+ *    application password is revoked (RemoteAccess::revoke_all — an inactive plugin must leave no working remote key).
  *
  * @package Addsynapse\StoreAssistant
  */
@@ -15,8 +17,10 @@ namespace Addsynapse\StoreAssistant\Install;
 
 use Addsynapse\StoreAssistant\Byok\KeyStore;
 use Addsynapse\StoreAssistant\Changesets\ChangesetService;
+use Addsynapse\StoreAssistant\Account\Usage;
 use Addsynapse\StoreAssistant\Jobs;
 use Addsynapse\StoreAssistant\Media\ImageUploads;
+use Addsynapse\StoreAssistant\Remote\RemoteAccess;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -34,6 +38,7 @@ final class Lifecycle {
 		return array(
 			ImageUploads::CLEANUP_HOOK,
 			ChangesetService::HOOK,
+			Usage::HOOK,
 		);
 	}
 
@@ -49,6 +54,8 @@ final class Lifecycle {
 	 */
 	public static function deactivate(): void {
 		self::unschedule_all();
+		Usage::deactivate();
+		RemoteAccess::revoke_all();
 	}
 
 	/**

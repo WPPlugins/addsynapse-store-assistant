@@ -14,7 +14,7 @@ defined( 'ABSPATH' ) || exit;
 /**
  * Information only (wordpress.org guidelines 5 and 11): nothing in this plugin is locked, checks a licence or waits for
  * the add-on. The links are plain links to the product page (opened by the manager), placed where the plugin already lists
- * what it can do — the «Upgrade to Pro» item of our own menu, «Get Pro» in our row of the Plugins list, the Pro card in
+ * what it can do — the «Upgrade to Pro» button and card on our Home, the Pro card in
  * Settings, the capability list of the empty chat and a «See Pro» button under the chat's answer to a request only the
  * add-on makes. No notice, no banner on other screens, no timer.
  *
@@ -34,7 +34,7 @@ final class ProOffers {
 		'el' => 'https://addsynapse.com/el/store-assistant',
 	);
 
-	/** Slug of the «Upgrade to Pro» menu item (it opens the product page). */
+	/** Slug of the former «Upgrade to Pro» menu item (its address still opens the product page). */
 	public const MENU_SLUG = 'addsynapse-store-assistant-pro';
 
 	/** The host the menu item may redirect to. */
@@ -44,9 +44,9 @@ final class ProOffers {
 	 * Registers hooks (wp-admin only).
 	 */
 	public function register_hooks(): void {
-		add_filter( 'plugin_action_links_' . plugin_basename( ADDSYNAPSE_ASSISTANT_PLUGIN_FILE ), array( $this, 'action_links' ) );
-		// After the Store Assistant item (same priority, registered later).
-		add_action( 'admin_menu', array( $this, 'add_menu' ), AddsynapseMenu::PRIORITY_SUBMENU + 1 );
+		// 1.3.0: no «Get Pro» in our row of the Plugins list (it read as if the plugin needed Pro); Pro is only the small
+		// card on Home. Also 1.3.0: no «Upgrade to Pro» menu item any more (a small button on Home); its old address still redirects
+		// (HomePage::legacy_redirects() → redirect()).
 	}
 
 	/**
@@ -91,47 +91,9 @@ final class ProOffers {
 		);
 	}
 
-	/**
-	 * «Get Pro» in our row of the Plugins list.
-	 *
-	 * @param mixed $links Action links.
-	 * @return array<int|string,string>
-	 */
-	public function action_links( $links ): array {
-		$links = is_array( $links ) ? $links : array();
-		if ( ! self::shown() || ! current_user_can( Config::capability() ) ) {
-			return $links;
-		}
-		$links['addsynapse_assistant_get_pro'] = sprintf(
-			'<a href="%1$s" target="_blank" rel="noopener noreferrer" aria-label="%2$s"><strong>%3$s</strong></a>',
-			esc_url( self::url( 'plugins-row' ) ),
-			esc_attr__( 'Get Store Assistant Pro (opens in a new tab)', 'addsynapse-store-assistant' ),
-			esc_html__( 'Get Pro', 'addsynapse-store-assistant' )
-		);
-		return $links;
-	}
 
 	/**
-	 * AddSynapse → «Upgrade to Pro» (opens the product page).
-	 */
-	public function add_menu(): void {
-		if ( ! self::shown() ) {
-			return;
-		}
-		$hook = AddsynapseMenu::add_page(
-			__( 'Upgrade to Pro', 'addsynapse-store-assistant' ),
-			__( 'Upgrade to Pro', 'addsynapse-store-assistant' ),
-			Config::capability(),
-			self::MENU_SLUG,
-			array( $this, 'render' )
-		);
-		if ( '' !== $hook ) {
-			add_action( 'load-' . $hook, array( $this, 'redirect' ) );
-		}
-	}
-
-	/**
-	 * The menu item is a link: before any output, send the manager to the product page.
+	 * The former menu item's address: before any output, send the manager to the product page.
 	 */
 	public function redirect(): void {
 		if ( ! current_user_can( Config::capability() ) ) {
@@ -152,13 +114,6 @@ final class ProOffers {
 		$hosts   = is_array( $hosts ) ? $hosts : array();
 		$hosts[] = self::HOST;
 		return $hosts;
-	}
-
-	/**
-	 * Fallback when a redirect is not possible (output already started): a link.
-	 */
-	public function render(): void {
-		echo '<div class="wrap"><h1>' . esc_html__( 'Store Assistant Pro', 'addsynapse-store-assistant' ) . '</h1><p><a class="button button-primary" href="' . esc_url( self::url( 'admin-menu' ) ) . '" target="_blank" rel="noopener noreferrer">' . esc_html__( 'See Pro', 'addsynapse-store-assistant' ) . '</a></p></div>';
 	}
 
 	/**

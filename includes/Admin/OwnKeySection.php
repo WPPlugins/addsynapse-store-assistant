@@ -94,8 +94,62 @@ final class OwnKeySection {
 	 * @param string $notice Notice.
 	 */
 	private static function redirect( string $notice ): void {
+		// The setup wizard (Home → «Chat here in WordPress») posts the same form and gets its answer there.
+		$wizard = isset( $_POST['addsynapse_assistant_return'] ) && 'wizard' === sanitize_key( wp_unslash( $_POST['addsynapse_assistant_return'] ) ); // phpcs:ignore WordPress.Security.NonceVerification.Missing -- callers verified the nonce; a fixed return target only.
+		if ( $wizard ) {
+			wp_safe_redirect(
+				HomePage::url(
+					array(
+						'setup'                       => 'key',
+						'addsynapse_assistant_notice' => $notice,
+					)
+				) . '#adsa-step-key'
+			);
+			exit;
+		}
 		wp_safe_redirect( SettingsPage::url( array( 'addsynapse_assistant_notice' => $notice ) ) . '#addsynapse-assistant-own-key' );
 		exit;
+	}
+
+	/**
+	 * The models of each provider, recommended first (for the model list that follows the provider).
+	 *
+	 * @return array<string,array<int,array{id:string,label:string}>>
+	 */
+	public static function model_catalog(): array {
+		$catalog   = array();
+		$recommend = __( '(recommended)', 'addsynapse-store-assistant' );
+		foreach ( Models::PROVIDERS as $provider ) {
+			$list = array();
+			foreach ( Models::options( $provider ) as $id => $label ) {
+				$list[] = array(
+					'id'    => $id,
+					'label' => $label . ( Models::default_model( $provider ) === $id ? ' ' . $recommend : '' ),
+				);
+			}
+			$catalog[ $provider ] = $list;
+		}
+		return $catalog;
+	}
+
+	/**
+	 * The result of the last «Save and test» / «Remove my key».
+	 *
+	 * @param string $notice Notice code of this page load.
+	 */
+	public static function render_notice( string $notice ): void {
+		if ( 'own_key_ok' === $notice ) {
+			echo '<div class="notice notice-success inline"><p><strong>' . esc_html__( 'The key works. The chat now uses your own AI key.', 'addsynapse-store-assistant' ) . '</strong></p></div>';
+		} elseif ( 'own_key_failed' === $notice ) {
+			$message = (string) get_transient( self::ERROR_TRANSIENT . get_current_user_id() );
+			echo '<div class="notice notice-error inline"><p><strong>' . esc_html__( 'The key was saved but the test failed, so the chat does not use it yet.', 'addsynapse-store-assistant' ) . '</strong> ' . esc_html( $message ) . '</p></div>';
+		} elseif ( 'own_key_invalid' === $notice ) {
+			echo '<div class="notice notice-error inline"><p>' . esc_html__( 'Choose a provider and one of its models (a model of the other provider cannot be used). Nothing was saved.', 'addsynapse-store-assistant' ) . '</p></div>';
+		} elseif ( 'own_key_bad_format' === $notice ) {
+			echo '<div class="notice notice-error inline"><p>' . esc_html__( 'This does not look like an API key (only letters, digits and - _ . : are allowed). Nothing was saved.', 'addsynapse-store-assistant' ) . '</p></div>';
+		} elseif ( 'own_key_deleted' === $notice ) {
+			echo '<div class="notice notice-success inline"><p>' . esc_html__( 'Your AI key was removed from this site.', 'addsynapse-store-assistant' ) . '</p></div>';
+		}
 	}
 
 	/**
@@ -121,24 +175,15 @@ final class OwnKeySection {
 		echo '<div class="aiops-connector__card aiops-own-key" id="addsynapse-assistant-own-key">';
 		echo '<h3>' . esc_html__( 'Your own AI key (free)', 'addsynapse-store-assistant' ) . '</h3>';
 		echo '<p>' . esc_html__( 'Use the assistant with your own Anthropic or OpenAI API key. The plugin and every one of its tools are free; you pay your AI provider directly for what you use.', 'addsynapse-store-assistant' ) . '</p>';
+		// The privacy note and the providers' terms, folded like in the setup wizard.
+		echo '<details class="adsa-more"><summary>' . esc_html__( 'More details', 'addsynapse-store-assistant' ) . '</summary>';
 		echo '<p class="description">' . esc_html__( 'When you chat, your message, the conversation, a summary of the site structure and the results of the tools the assistant uses for your question (for example product names, prices, stock and sales figures — never customer names, emails or phone numbers) are sent from this server to the AI provider you choose, under that provider\'s terms and privacy policy. An image you attach in the chat is sent with that message (a reduced copy; you can turn this off below: «The AI sees the images you upload»). Nothing is sent before you press «Save and test», and nothing goes to AddSynapse.', 'addsynapse-store-assistant' ) . '</p>';
 		echo '<p class="description">';
 		echo esc_html__( 'Anthropic:', 'addsynapse-store-assistant' ) . ' <a href="' . esc_url( 'https://www.anthropic.com/legal/commercial-terms' ) . '" target="_blank" rel="noopener noreferrer">' . esc_html__( 'Terms', 'addsynapse-store-assistant' ) . '</a> · <a href="' . esc_url( 'https://www.anthropic.com/legal/privacy' ) . '" target="_blank" rel="noopener noreferrer">' . esc_html__( 'Privacy', 'addsynapse-store-assistant' ) . '</a> — ';
 		echo esc_html__( 'OpenAI:', 'addsynapse-store-assistant' ) . ' <a href="' . esc_url( 'https://openai.com/policies/business-terms' ) . '" target="_blank" rel="noopener noreferrer">' . esc_html__( 'Terms', 'addsynapse-store-assistant' ) . '</a> · <a href="' . esc_url( 'https://openai.com/policies/privacy-policy' ) . '" target="_blank" rel="noopener noreferrer">' . esc_html__( 'Privacy', 'addsynapse-store-assistant' ) . '</a>';
-		echo '</p>';
+		echo '</p></details>';
 
-		if ( 'own_key_ok' === $notice ) {
-			echo '<div class="notice notice-success inline"><p><strong>' . esc_html__( 'The key works. The chat now uses your own AI key.', 'addsynapse-store-assistant' ) . '</strong></p></div>';
-		} elseif ( 'own_key_failed' === $notice ) {
-			$message = (string) get_transient( self::ERROR_TRANSIENT . get_current_user_id() );
-			echo '<div class="notice notice-error inline"><p><strong>' . esc_html__( 'The key was saved but the test failed, so the chat does not use it yet.', 'addsynapse-store-assistant' ) . '</strong> ' . esc_html( $message ) . '</p></div>';
-		} elseif ( 'own_key_invalid' === $notice ) {
-			echo '<div class="notice notice-error inline"><p>' . esc_html__( 'Choose a provider and one of its models (a model of the other provider cannot be used). Nothing was saved.', 'addsynapse-store-assistant' ) . '</p></div>';
-		} elseif ( 'own_key_bad_format' === $notice ) {
-			echo '<div class="notice notice-error inline"><p>' . esc_html__( 'This does not look like an API key (only letters, digits and - _ . : are allowed). Nothing was saved.', 'addsynapse-store-assistant' ) . '</p></div>';
-		} elseif ( 'own_key_deleted' === $notice ) {
-			echo '<div class="notice notice-success inline"><p>' . esc_html__( 'Your AI key was removed from this site.', 'addsynapse-store-assistant' ) . '</p></div>';
-		}
+		self::render_notice( $notice );
 		if ( KeyStore::unreadable() ) {
 			echo '<div class="notice notice-warning inline"><p>' . esc_html__( 'The saved key can no longer be read (the site\'s security keys changed). Enter it again.', 'addsynapse-store-assistant' ) . '</p></div>';
 		}
@@ -169,20 +214,9 @@ final class OwnKeySection {
 		echo '</select></td></tr>';
 		// Only the models of the selected provider (settings.js swaps the list when the provider changes; the server
 		// refuses a model of another provider). The recommended model comes first.
-		$current   = '' !== $settings['provider'] ? $settings['provider'] : Models::PROVIDERS[0];
-		$selected  = '' !== $settings['model'] && Models::matches( $current, $settings['model'] ) ? $settings['model'] : Models::default_model( $current );
-		$catalog   = array();
-		$recommend = __( '(recommended)', 'addsynapse-store-assistant' );
-		foreach ( Models::PROVIDERS as $provider ) {
-			$list = array();
-			foreach ( Models::options( $provider ) as $id => $label ) {
-				$list[] = array(
-					'id'    => $id,
-					'label' => $label . ( Models::default_model( $provider ) === $id ? ' ' . $recommend : '' ),
-				);
-			}
-			$catalog[ $provider ] = $list;
-		}
+		$current  = '' !== $settings['provider'] ? $settings['provider'] : Models::PROVIDERS[0];
+		$selected = '' !== $settings['model'] && Models::matches( $current, $settings['model'] ) ? $settings['model'] : Models::default_model( $current );
+		$catalog  = self::model_catalog();
 		echo '<tr><th scope="row"><label for="addsynapse-assistant-ai-model">' . esc_html__( 'Model', 'addsynapse-store-assistant' ) . '</label></th><td><select id="addsynapse-assistant-ai-model" name="addsynapse_assistant_ai_model" data-addsynapse-assistant-models="' . esc_attr( (string) wp_json_encode( $catalog ) ) . '">';
 		foreach ( $catalog[ $current ] as $option ) {
 			echo '<option value="' . esc_attr( $option['id'] ) . '"' . selected( $selected, $option['id'], false ) . '>' . esc_html( $option['label'] ) . '</option>';

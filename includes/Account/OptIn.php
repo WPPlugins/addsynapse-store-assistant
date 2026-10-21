@@ -199,7 +199,7 @@ final class OptIn {
 	 * @param string $tab Posted tab.
 	 */
 	private static function back_url( string $tab ): string {
-		return 'settings' === $tab ? SettingsPage::url() : AdminPage::url();
+		return AdminPage::back_url( $tab );
 	}
 
 	/**

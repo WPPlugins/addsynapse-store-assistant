@@ -1,145 +1,263 @@
 === AddSynapse – AI Website & Store Assistant for WooCommerce ===
 Contributors: sakkoulas
-Tags: ai, ai assistant, woocommerce, ai agent, claude
+Tags: ai, woocommerce, claude, mcp, ai assistant
 Requires at least: 6.9
 Tested up to: 7.1
 Requires PHP: 7.4
 WC requires at least: 8.0
 WC tested up to: 11.1
-Stable tag: 1.2.0
+Stable tag: 1.3.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-AI assistant in wp-admin for WordPress and WooCommerce: ask about sales, stock and SEO, edit products with Undo. Free with your Claude or OpenAI key.
+Run your WooCommerce store or WordPress site from Claude, or chat in wp-admin with your own AI key. Every change is a draft you approve, with Undo.
 
 == Description ==
 
-**AddSynapse – AI Website & Store Assistant for WooCommerce** is an AI assistant for WordPress and WooCommerce that
-lives in wp-admin (**AddSynapse → Store Assistant**). Shop managers ask, in plain words and in their own language, about
-their store and their website, and for the product changes they would otherwise click through screen by screen:
-"which products are out of stock?", "what were my best sellers last month?", "put the Linen Shirt on sale at 29.90
-until Sunday", "set this photo as the main image of the blue mug", "write a better SEO title for the Linen Shirt".
+**Talk to your store. Approve what changes.**
 
-It works as an AI agent with a fixed set of checked tools: it looks the data up itself, then prepares a preview of the
-change, and nothing changes until you click **Approve**.
+AddSynapse turns your WordPress site or WooCommerce store into something you can simply talk to. Ask
+"which products are low on stock?", "what were my best sellers last month?", "lower every price in Summer Dresses by
+10%" or "write better SEO titles for my bags" — and get real answers from your own data, plus ready-made drafts of the
+changes you asked for.
 
-= Free with your own Claude or OpenAI API key =
+Nothing changes on your site until you press **Approve**. And every approved change can be put back exactly as it
+was with **Undo**.
 
-Paste an Anthropic (Claude) or OpenAI (GPT) API key in **Settings** (or in the chat's first screen) and every feature of
-the plugin works, with no account and no plan. It edits one product at a time. You pay your AI provider directly for
-what you use; the Settings screen shows an estimate of your usage and cost. The key is stored encrypted on your site
-(or in `wp-config.php`) and is never sent to the browser or to AddSynapse.
+Use it two ways — or both:
 
-No account is needed. After your key works, the plugin offers once an optional, free AddSynapse account (your sites in
-one place on addsynapse.com) — nothing is locked without it, and nothing is sent unless you click **Create account**.
+= 1. From Claude, with no API key =
 
-Each question costs as little as possible on your key: the assistant sends the AI a small set of instructions and only
-the tools that question needs.
+Connect your site once and use it from the Claude you already pay for, on claude.ai or the Claude apps.
 
-Everything that runs on your site also works before you add a key: slash commands (for example `/report low_stock` or
-`/price id=123 -10%`), the previews, Approve, Undo and voice input.
+* **No API key, no setup files.** A short wizard on **AddSynapse → Home** checks your site, then you connect it from
+  Claude and approve the connection on WordPress' own **Authorize Application** screen.
+* **Drafts you approve inside the chat.** Price changes, sales, stock, SEO titles and meta descriptions, coupons: Claude
+  prepares a draft and shows it as a card with the exact before and after values. Press **Approve** in the card and
+  it is applied; until then nothing on your site changes.
+* **Exact Undo.** Every approved change can be undone from the card or from your AddSynapse account, restoring the
+  previous values — and only if nothing else changed them in the meantime.
+* **All your stores in one place.** Connect several stores and sites to the same free AddSynapse account and ask Claude
+  about any of them.
+* **A log on your own site.** Every write is listed in **Settings → Approval log**, and you can revoke the connection
+  at any time under **Users → Profile → Application Passwords**.
+* **Locked down by design.** The connection uses a WordPress Application Password that this plugin limits to its own
+  store routes (no users, plugins, settings or other REST routes), and every write needs a single-use approval
+  signed at the moment you pressed Approve.
 
-= WooCommerce reports in plain words =
+This way needs a free AddSynapse account (created during the connection). It includes a daily allowance of actions;
+larger allowances are available on paid plans at addsynapse.com. See **External services** below for exactly what is
+sent.
 
-Search products (by name, SKU, category, tag, brand, attribute, price, stock) and ask for low stock, out of stock,
-products missing images, descriptions or prices, best sellers, sales by day, week or month, recent orders and top
-customers (as references only — no names or emails leave your site). Sales answers come with simple charts.
+= 2. A chat inside wp-admin, with your own AI key =
 
-= AI product descriptions and product SEO, one product at a time =
+Paste an Anthropic (Claude) or OpenAI (GPT) API key in **Settings** and the chat on **AddSynapse → Chat** works with
+no account and no plan. You pay your AI provider directly for what you use; Settings shows an estimate of your usage
+and cost. The key is stored encrypted on your site (or in `wp-config.php`) and is never sent to the browser or to
+AddSynapse.
 
-* **Product descriptions:** the AI writes, rewrites, shortens or translates the name, short description and description
-  of a product, and you see the new text in the preview before you approve it.
-* **Product SEO:** a new SEO title, meta description and focus keyword for a product, in Rank Math or Yoast SEO, with
-  their lengths checked.
+The chat edits one product at a time:
+
+* **Product descriptions:** write, rewrite, shorten or translate a product's name, short description and description.
+* **Product SEO:** a new SEO title, meta description and focus keyword in Rank Math or Yoast SEO, with lengths checked.
 * **Product images:** drop or paste a photo into the chat and make it the main image or add it to the gallery.
 * **Prices and stock:** price and sale price with dates, and the stock quantity.
 * **Categories, tags and brand:** assign the product to existing ones.
 
-Each change covers one product. When you ask for many at once, the assistant says so and offers to do one now.
+Each request costs as little as possible on your key: the assistant sends only the instructions and tools that
+question needs. Slash commands (for example `/report low_stock` or `/price id=123 -10%`), previews, Approve, Undo and
+voice input work even before you add a key.
 
-= Your WordPress website, also without WooCommerce =
+= WooCommerce reports in plain words =
 
-The assistant reads your pages (Gutenberg and Elementor), menus, media library and the SEO of pages and posts, so you
-can ask "which pages have no meta description?" or "what is in the main menu?". On a plain WordPress site (no
-WooCommerce) it answers about the site; changes to pages, posts and menus are part of Store Assistant Pro.
+Search products by name, SKU, category, tag, brand, attribute, price or stock, and ask for low stock (each product's
+own threshold), out of stock, products missing images, descriptions or prices, best sellers, sales by day, week or
+month, recent orders and top customers — customers only as anonymous references; no names or emails leave your site.
 
-= Voice and images =
+= Works on plain WordPress too =
 
-Type or speak (optional voice input, off by default) and attach an image to a message. The AI can see an attached image
-(a reduced copy; you can turn this off in Settings).
+No WooCommerce? The wp-admin chat reads your pages (block editor and Elementor), posts, menus, media library and the
+SEO of pages and posts, so you can ask "which pages have no meta description?" or "what is in the main menu?". You can
+connect the site to Claude too, to review the SEO titles and meta descriptions of your pages and posts (changes from
+Claude need WooCommerce for now).
+Product, order and coupon tools appear when WooCommerce is active.
+
+= Every change is a draft a person approves =
+
+The assistant only reads data and prepares drafts. A change is applied only when a logged-in user approves it in
+wp-admin, or when you press Approve on the draft card in Claude. The assistant never creates, edits or deletes user
+accounts, never changes passwords and never runs code or SQL: it can only use a fixed set of checked operations.
 
 = Store Assistant Pro (separate add-on) =
 
-**Store Assistant Pro** is a separate, paid add-on by AddSynapse for work beyond single products, for example:
-
-* **AI blog writing:** drafting blog posts and other content.
-* **Bulk edit products:** bulk price changes by category or brand, CSV imports.
-* **SEO at scale:** SEO titles, meta descriptions and image alt text for many products, pages and posts at once.
-* **Pages, menus and design:** editing pages, sections, menus and the site's appearance by chat.
-* **Catalog and sales:** managing categories, tags, brands, attributes and variations, coupons and orders, and a full
-  change history.
-* **Our AI included:** use it without an API key of your own.
-
-Plans: https://addsynapse.com/store-assistant. Pro is not included in this plugin and this plugin does not check for it:
-everything described in the sections above is complete and free. The plugin shows plain links to the add-on's page
-only on its own screens: "Upgrade to Pro" in the AddSynapse menu, "Get Pro" in its row of the Plugins list, a card in
-Settings, the Pro list of the chat's start screen and a "See Pro" button when you ask the chat for something only Pro
-does. An installed Pro add-on can turn these links off.
-
-= Every change is a preview a person approves =
-
-The assistant only reads data and prepares drafts. Nothing on your site changes until a logged-in user with the right
-permissions clicks **Approve** on the preview here in wp-admin, and every approved change can be undone (**Undo**) as
-long as nothing else changed the same data since. The assistant never creates, edits or deletes user accounts, never
-changes passwords and never runs code or SQL: it can only ask the plugin for a fixed set of checked operations.
+**Store Assistant Pro** is a separate, paid add-on by AddSynapse for the wp-admin chat: bulk product edits and CSV
+imports, SEO at scale, pages, menus and design by chat, catalog management (categories, attributes, variations),
+coupons and orders, a full change history, and an AI included so you need no key of your own. Details:
+https://addsynapse.com/store-assistant. Pro is not included in this plugin and this plugin does not check for it:
+everything described above works without it. The plugin links to the add-on only on its own screens ("Upgrade to
+Pro" and a small card on AddSynapse → Home, "Get Pro" in its row of the Plugins list, the Pro list on the chat's start
+screen and a "See Pro" button when you ask the chat for something only Pro does). An installed Pro add-on can turn
+these links off.
 
 = How it works =
 
-The chat, the tools and your data stay in WordPress. Your AI provider decides which tool to use next and writes the
-answers; the tools themselves run on your server, during the chat request of the logged-in user and with that user's
-permissions.
+**With your own key (wp-admin chat):** the chat, the tools and your data stay in WordPress. Your server calls your AI
+provider's API directly (api.anthropic.com or api.openai.com) with your key; the tools run on your server, during the
+chat request of the logged-in user and with that user's permissions.
 
-Nothing can start anything on your site from outside. The plugin has no job queue, no background polling and no
-"wake-up" or remote-command endpoint: the AI only answers the chat requests that a logged-in user sends from wp-admin,
-and every change is applied only when a logged-in user approves its preview here in wp-admin.
-
-= The AI runs on an external service =
-
-The AI is not part of the plugin: your server calls your AI provider's API directly (api.anthropic.com or
-api.openai.com) with your key. For a question to the AI the plugin sends the text of your chat message and the store
-and site data the AI needs to answer it (the results of the tools it used: products, categories, pages, menus, SEO and
-order data — customers only as anonymous references), plus a summary of your site structure, and an image you attach
-to that message (a reduced copy; it can be turned off in Settings). Nothing is sent before an administrator saves a
-key, and slash commands are never sent. The exact list of calls is in **External services**
-below.
+**From Claude:** Claude talks to AddSynapse, and AddSynapse calls your site's own REST routes with the Application
+Password you approved, only for the allowed read tools and — after you press Approve — to write exactly the approved
+values. The plugin has no job queue, no background polling and no remote-command endpoint.
 
 AddSynapse is operated by WebOrange (Ioannis Sakkoulas).
 
+== Installation ==
+
+1. In WordPress go to **Plugins → Add New Plugin**, search for **AddSynapse**, find **AddSynapse Store Assistant**,
+   click **Install Now** and **Activate**.
+2. Open **AddSynapse → Home**. The welcome wizard asks how you want to use it:
+   * **From Claude:** run the connectivity check, add AddSynapse to Claude, then ask Claude to connect your site and
+     approve the connection on WordPress' Authorize Application screen. The steps turn green on their own.
+   * **With your own AI key:** choose Anthropic or OpenAI, paste an API key and click **Save and test**, then open
+     **Chat**.
+3. Ask something about your store, open a draft, click **Approve** — and try **Undo**.
+
+== Frequently Asked Questions ==
+
+= Do I need an API key? =
+
+Not to use it from Claude: your Claude subscription does the AI work. For the chat inside wp-admin, yes: your own
+Anthropic or OpenAI key.
+
+= Do I need an AddSynapse account? =
+
+Only to use your site from Claude (the connection runs through AddSynapse); the account is free and is created during
+the connection. The wp-admin chat with your own key needs no account and nothing in it is locked without one.
+
+= Is it free? =
+
+The plugin is free, and so is the wp-admin chat with your own key (you pay only your AI provider). Using it from
+Claude needs a free AddSynapse account with a daily allowance of actions; larger allowances are on paid plans at
+addsynapse.com. Undo never counts.
+
+= Can Claude change my store without asking? =
+
+No. Claude can only read through the allowed tools and prepare drafts. A change is written only after you press
+Approve, and the write needs a single-use approval signed at that moment: even someone holding the Application
+Password cannot write without it.
+
+= How does Undo work? =
+
+Every approved change keeps the values from before. Undo writes them back — from the draft card in Claude, from your
+AddSynapse account, or from the preview card in wp-admin — and only if nothing else changed the same data since, so it
+never overwrites a newer edit.
+
+= Does it work with ChatGPT? =
+
+The wp-admin chat works today with an OpenAI key. Using your site from ChatGPT through AddSynapse is being rolled out;
+Claude is supported now.
+
+= Can I connect more than one store? =
+
+Yes. Connect as many stores and sites as you like to one AddSynapse account and choose which one to work on in Claude.
+
+= What can AddSynapse read and write on my site? =
+
+Read: store name and structure, products and variations, categories, stock and sales reports (sales totals and best
+sellers — never customer names, emails or addresses), and SEO texts. Write, only after you approve (on WooCommerce
+stores): prices, sales and stock of products and variations, SEO titles and meta descriptions of products, pages and
+posts, and coupons. Every write is listed in Settings → Approval log.
+
+= How do I disconnect? =
+
+Revoke the "AddSynapse" Application Password under **Users → Profile → Application Passwords**. Deactivating or
+deleting the plugin also revokes every Application Password WordPress issued to AddSynapse on this site.
+
+= Can the wp-admin chat change many products at once? =
+
+The free chat edits one product at a time (one preview per product). Bulk editing in the wp-admin chat is part of Store
+Assistant Pro, a separate add-on.
+
+= Where is my AI key stored, and who sees it? =
+
+Encrypted in your WordPress database (not autoloaded), or in `wp-config.php` if you define
+`ADDSYNAPSE_ASSISTANT_ANTHROPIC_KEY` or `ADDSYNAPSE_ASSISTANT_OPENAI_KEY`. Only administrators can set or remove it;
+the screens show only its last four characters. It is sent only to your AI provider's API, never to the browser or to
+AddSynapse. **Remove my key** (or deleting the plugin) deletes it.
+
+= How much does my own key cost? =
+
+It depends on the model and on how much you use the chat. Each question sends the AI only the instructions and tools
+it needs, and repeated parts are cached by your provider where it supports that. Settings shows the calls, tokens and
+an estimated cost for this month and the last 30 days; your provider's dashboard shows the real bill.
+
+= My host stops long requests. What can I do? =
+
+Turn on **Compatibility mode** in Settings → Your own AI key: the assistant then makes one AI step per request and the
+chat continues by itself.
+
+= Does it touch users, passwords or code? =
+
+No. It cannot create, edit or delete users, change passwords, or run code or SQL.
+
+= Does it work without WooCommerce? =
+
+Yes. The wp-admin chat reads pages, posts, menus, the media library and SEO, and you can connect the site to Claude to
+review the SEO titles and meta descriptions of pages and posts. Product, order and coupon tools need WooCommerce.
+
+= Which page builders and SEO plugins are supported? =
+
+Pages (read): the block editor (Gutenberg/FSE) and Elementor. SEO: Rank Math and Yoast SEO.
+
+= Who can use it? =
+
+Users who can manage WooCommerce (or, without WooCommerce, edit the theme options) can use the chat. Setting the AI
+key and connecting the site are for administrators only.
+
+= What is deleted when I delete the plugin? =
+
+Deleting the plugin from the Plugins screen removes its tables (conversations, change history), its settings, its
+scheduled tasks, unused images uploaded in the chat and your AI key, and revokes the Application Passwords issued to
+AddSynapse. Changes already applied to your products and pages stay. Deactivating the plugin also revokes those
+Application Passwords; it removes no data.
+
+= Where is the source code of the JavaScript? =
+
+The readable source of the admin app is in the `src/` folder of the plugin, with `package.json` and
+`package-lock.json` (exact versions). Build it with `npm ci && npm run build` (output in `build/`).
+
+== Screenshots ==
+
+1. The welcome wizard on AddSynapse → Home: use it from Claude (no API key) or chat here with your own AI key.
+2. Connecting to Claude: four short steps that turn green on their own.
+3. A draft in Claude: the exact before and after prices, with Approve — nothing changes until you press it.
+4. Settings → Approval log: every change written after your approval, and every Undo.
+5. The chat in wp-admin: a price change preview with Approve or Reject; approved changes can be undone.
+
 == External services ==
 
-The AI of the assistant is an external service: your own AI provider (sections 1 and 2). Slash commands, previews,
-Approve and Undo run on your site and need no service. **Nothing is sent anywhere until an administrator clicks "Save
-and test"** in AddSynapse → Store Assistant → Settings, next to a text that lists what is sent. Before that, the plugin
-makes no outgoing requests and schedules no recurring background tasks (only local one-off work that you start
-yourself: applying a large approved change, or removing an image you uploaded in the chat and never used). The plugin
-contacts AddSynapse only if an administrator creates an AddSynapse account from the plugin (section 4). The links to
-the Store Assistant Pro page on addsynapse.com and to the plugin's reviews on WordPress.org are ordinary links that
-your browser opens when you click them; the plugin sends nothing for them.
+The plugin uses external services only for the features you turn on. Slash commands, previews, Approve and Undo in
+wp-admin run on your site and need no service. **Before an administrator saves an AI key (section 1 or 2), starts the
+Claude connection (section 5), creates an account (section 4) or allows anonymous usage info (section 6), the plugin
+makes no outgoing requests** and schedules no recurring background tasks (only local one-off work you start yourself:
+applying a large approved change, or removing an image you uploaded in the chat and never used). The connectivity
+check of the wizard is a request from your site to itself. The links to the Store Assistant Pro page on
+addsynapse.com and to the plugin's reviews on WordPress.org are ordinary links your browser opens when you click them.
 
 = 1. Anthropic API — api.anthropic.com (only with your own Anthropic key) =
 
-Used to answer in the chat with your key, called by your server (never by the browser), only while a logged-in user
-chats. **Save and test** sends one tiny test message with no site data. Then, for each question to the AI (slash
-commands are never sent): one small call that picks the tools the question needs and a title for the conversation (it
-gets the message, the previous answer and the number of ticked products), and the main calls with the message and the
-conversation, the instructions of the assistant and the list of its tools, a summary of your site structure (active
-plugins, theme, taxonomies and attributes, currency, time zone, menu locations), the admin and site language, the ids
-of ticked products, and an image you attach in the chat: its name, size and type and the image itself, reduced to at
-most 1,024 pixels (on by default; a manager can turn it off in Settings → "The AI sees the images you upload", then only
-the name, size and type are sent; images are sent only with the message they are attached to), and
-the results of the tools the assistant used (product, category, page, menu, SEO and order
-data — customers only as anonymous references, never names, emails, phone numbers or addresses). Your key is sent in
-the request header.
+Used to answer in the wp-admin chat with your key, called by your server (never by the browser), only while a
+logged-in user chats. **Save and test** sends one tiny test message with no site data. Then, for each question to the
+AI (slash commands are never sent): one small call that picks the tools the question needs and a title for the
+conversation (it gets the message, the previous answer and the number of ticked products), and the main calls with
+the message and the conversation, the instructions of the assistant and the list of its tools, a summary of your site
+structure (active plugins, theme, taxonomies and attributes, currency, time zone, menu locations), the admin and site
+language, the ids of ticked products, and an image you attach in the chat: its name, size and type and the image
+itself, reduced to at most 1,024 pixels (on by default; a manager can turn it off in Settings → "The AI sees the
+images you upload", then only the name, size and type are sent; images are sent only with the message they are
+attached to), and the results of the tools the assistant used (product, category, page, menu, SEO and order data —
+customers only as anonymous references, never names, emails, phone numbers or addresses). Your key is sent in the
+request header.
 
 * Anthropic commercial terms: https://www.anthropic.com/legal/commercial-terms
 * Anthropic privacy policy: https://www.anthropic.com/legal/privacy
@@ -167,131 +285,86 @@ Microsoft, Safari: Apple or on the device), under the vendor's own terms:
 
 Optional. After "Save and test" succeeds, the plugin's own screens show a card "Create a free AddSynapse account"
 (with "Skip"; it comes back at most once, 30 days later). Nothing is sent unless an administrator clicks
-**Create account**. Then, once: the email in the card (prefilled with the site's admin email, editable), the shop's
-address (home URL), whether the "Send me news and offers" box was ticked (unticked by default; news are emailed only
-after you confirm a link AddSynapse sends) and the version of the consent text. AddSynapse creates the account and
-returns a site key (stored encrypted). Your AI key, chats and store data are never
-sent.
+**Create account**. Then, once (`POST /api/v1/assistant/optin` on api.addsynapse.com): the email in the card
+(prefilled with the site's admin email, editable), the site's address (home URL), whether the "Send me news and
+offers" box was ticked (unticked by default; news are emailed only after you confirm a link AddSynapse sends) and the
+version of the consent text. AddSynapse creates the account and returns a site key (stored encrypted). Your AI key,
+chats and store data are never sent.
 
 With an account, at most once a day and only while a user opens the plugin's own screens, the plugin asks AddSynapse
-for short announcements (text and at most one link, shown only on the plugin's screens, dismissible, no images or
-tracking). It sends the site key, the plugin version and the site language. "Disconnect this site" in Settings (or
-deleting the plugin) stops this.
+for short announcements (`POST /api/v1/assistant/announcements` on api.addsynapse.com; text and at most one link,
+shown only on the plugin's screens, dismissible, no images or tracking). It sends the site key, the plugin version and
+the site language. "Disconnect this site" in Settings (or deleting the plugin) stops this.
 
 * AddSynapse terms of service: https://addsynapse.com/terms
 * AddSynapse privacy policy: https://addsynapse.com/privacy
 
-== Installation ==
+= 5. AddSynapse for Claude and other AI apps — addsynapse.com (only after you approve the connection) =
 
-1. Install the plugin from Plugins → Add New, or upload the ZIP, and activate it. WooCommerce is needed for changes;
-   without it the assistant reads pages, menus and SEO.
-2. Go to **AddSynapse → Store Assistant → Settings**.
-3. Under **Your own AI key**, choose Anthropic or OpenAI, paste an API key and click **Save and test**.
-4. Open the **Chat** tab and ask something about your site.
+Optional: use your site from Claude (AddSynapse → Home → "Use your store from Claude"). The setup steps
+only check your own site and show links and text to copy; they send nothing to AddSynapse. The "Add to Claude" link
+opens app.addsynapse.com with this site's address in the link (so AddSynapse knows which site to check when you sign
+up), which then opens Claude's connector page; your browser opens it only when you click it.
 
-== Frequently Asked Questions ==
+You start the connection from your AI chat; it opens WordPress' own **Authorize Application** screen on your site, and
+only if you press "Yes, I approve" does WordPress create an Application Password for "AddSynapse". WordPress returns
+it to this plugin's own AddSynapse page on your site (never in a web address to AddSynapse); that page, for a
+logged-in administrator only, sends it once to AddSynapse with
+`POST https://api.addsynapse.com/api/v1/assistant/relay-claim` (called by your server, over HTTPS, with the password,
+your user name, the site address and the one-time code of that connection in the request body), then takes your
+browser back to addsynapse.com. The plugin does not store the password (WordPress keeps only its hash).
 
-= Do I need an account? =
+That password is limited by this plugin to its own `addsynapse-assistant/v1/remote/*` routes (no users, plugins,
+settings, other REST routes or XML-RPC). With it, AddSynapse's servers call your site, when you ask your AI app, to
+read: the store name and structure, products and variations, categories, stock and catalogue reports, sales totals and
+best sellers (never customer names, emails or addresses), and SEO titles and descriptions. Only after you press
+Approve on a draft (or Undo), and only with a single-use approval ticket that AddSynapse signs at that moment (Ed25519,
+valid 5 minutes, bound to this site and to the exact values), they write the approved values (on WooCommerce
+stores): prices, sale prices and stock of products and variations, SEO titles and meta descriptions of products, pages
+and posts, and coupons. Each write is listed in Settings → Approval log. Revoke the connection at any time under Users → Profile → Application
+Passwords; deactivating or deleting the plugin revokes it too.
 
-No. The plugin works fully with only your own AI key; it needs no AddSynapse account and never asks for one to unlock
-anything. Creating a free account from the card in the plugin is optional; see External services, section 4.
+Before you connect, the AddSynapse setup page may check whether this plugin is active on your site by opening a
+public route of it (`addsynapse-assistant/v1/hello`) that answers only the plugin name, its version and that it
+supports AI-app connections. This is a request from AddSynapse to your site; the plugin sends nothing for it.
 
-= How can I test the plugin without paying? =
+* AddSynapse terms of service: https://addsynapse.com/terms
+* AddSynapse privacy policy: https://addsynapse.com/privacy
 
-Without any key, slash commands already work in the Chat tab — for example `/report low_stock`, or
-`/price id=123 -10%` followed by **Approve** and **Undo** on its preview; the plugin makes no outgoing requests. For the
-AI, paste an Anthropic or OpenAI API key in Settings → **Your own AI key** and click **Save and test** (your provider
-bills you for what you use; small models cost little). Then ask, for example, "which products are low on stock?" or
-"lower the price of product X by 10%", open the preview card, click **Approve**, check the product and click **Undo**.
+= 6. AddSynapse — api.addsynapse.com (only if you allow anonymous usage info) =
 
-= What is free? =
+Optional and off by default, separate from the account and from your AI key. The plugin's own screens show a notice
+"Help improve Store Assistant" with **Allow** and **No thanks** (once; "No thanks" hides it for good). Nothing is sent
+and nothing is scheduled unless an administrator clicks **Allow** (or **Turn on** in Settings → "Anonymous usage
+info"). Then the plugin sends `POST https://api.addsynapse.com/api/v1/assistant/usage` once right away and after that
+at most once a week (WP-Cron), with: a random ID created on your site when you allowed it (not derived from the site,
+its address or any user), the plugin, WordPress and WooCommerce versions, the site language and the version of the
+consent text. Never the site address, an email, content, store or customer data, or your AI key. AddSynapse uses it
+only to count active installations and versions. **Turn off** in Settings, deactivating or deleting the plugin stops
+the calls and deletes the random ID on your site.
 
-The whole plugin. Every feature in it works with your own AI key, with no account or plan; you pay only your AI
-provider. It edits one product at a time. Slash commands, previews, Approve, Undo and voice input work for everyone, with no key.
-
-= What is Store Assistant Pro? =
-
-A separate, paid add-on by AddSynapse for work beyond single products (bulk changes, CSV imports, managing categories,
-attributes and variations, coupons and orders, the site's appearance, new content, a full change history, and an AI
-without your own key): https://addsynapse.com/store-assistant. This plugin does not contain it, does not check for it
-and works the same without it.
-
-= Can I change many products at once? =
-
-This plugin edits one product at a time (one preview per product). Bulk editing is part of Store Assistant Pro, a
-separate add-on.
-
-= Can it write product descriptions? =
-
-Yes, one product at a time: ask it to write, improve or translate a product's name, short description or description.
-The new text appears in a preview; nothing changes until you click **Approve**, and **Undo** brings the old text back.
-
-= Can it write blog posts? =
-
-Not in this plugin. It reads your posts and their SEO, but writing and publishing blog posts (AI blog writing) is
-part of Store Assistant Pro, a separate add-on.
-
-= Where is my AI key stored, and who sees it? =
-
-Encrypted in your WordPress database (not autoloaded), or in `wp-config.php` if you define
-`ADDSYNAPSE_ASSISTANT_ANTHROPIC_KEY` or `ADDSYNAPSE_ASSISTANT_OPENAI_KEY`. Only administrators can set or remove it;
-the screens show only its last four characters. It is sent only to your AI provider's API, never to the browser or to
-AddSynapse. **Remove my key** (or deleting the plugin) deletes it.
-
-= How much does my own key cost? =
-
-It depends on the model and on how much you use the chat. Each question sends the AI only the instructions and tools
-it needs, and repeated parts are cached by your provider where it supports that. Settings shows the calls, tokens and an estimated cost for this
-month and the last 30 days, at the providers' list prices; your provider's dashboard shows the real bill. The default
-models are the small, fast ones.
-
-= My host stops long requests. What can I do? =
-
-Turn on **Compatibility mode** in Settings → Your own AI key: the assistant then makes one AI step per request and the
-chat continues by itself.
-
-= Can the assistant change my site without asking? =
-
-No. Its tools only read data or prepare a draft. A logged-in user with the right permissions has to click **Approve**
-on the preview here in wp-admin. Approved changes can be undone from their preview card.
-
-= What can the AI do on my site? =
-
-Nothing on its own. It only answers the chat requests that a logged-in user sends from wp-admin; it cannot start a
-tool, a job or any other action on your site, and the plugin has no endpoint that accepts commands from outside.
-During your chat request the assistant's tools run on your server with your permissions and only read data or prepare
-drafts (stored in the plugin's own tables). Every change is approved by a logged-in user here in wp-admin.
-
-= Does it touch users, passwords or code? =
-
-No. It cannot create, edit or delete users, change passwords, or run code or SQL.
-
-= Does it work without WooCommerce? =
-
-Yes, to read pages, menus, the media library and SEO. Changes are product changes, so they need WooCommerce.
-
-= Which page builders and SEO plugins are supported? =
-
-Pages (read): the block editor (Gutenberg/FSE) and Elementor. SEO: Rank Math and Yoast SEO. Pages built with other
-builders are listed in Settings as "needs a human" — the assistant does not guess.
-
-= Who can use the chat? =
-
-Users who can manage WooCommerce (or, without WooCommerce, edit the theme options). Setting the AI key is for
-administrators only.
-
-= What is deleted when I delete the plugin? =
-
-Deleting the plugin from the Plugins screen removes its tables (conversations, change history), its settings and its
-scheduled tasks, and images uploaded in the chat that were never used. Changes already applied to your products and
-pages stay, and your AI key is deleted. Deactivating the plugin removes nothing.
-
-= Where is the source code of the JavaScript? =
-
-The readable source of the admin app is in the `src/` folder of the plugin, with `package.json` and
-`package-lock.json` (exact versions). Build it with `npm ci && npm run build` (output in `build/`).
+* AddSynapse terms of service: https://addsynapse.com/terms
+* AddSynapse privacy policy: https://addsynapse.com/privacy
 
 == Changelog ==
+
+= 1.3.0 =
+* New: use your store or site from Claude, with no API key. Claude prepares drafts — prices and sales, stock, SEO
+  titles and meta descriptions, coupons — that you approve with one click in the chat, and every approved change can
+  be undone exactly. Connect several stores and sites to one AddSynapse account.
+* New: a welcome wizard on AddSynapse → Home. Choose how to use it — from Claude (no API key) or the chat here with
+  your own AI key — and follow short steps that turn green on their own. The menu is now Home, Chat and Settings (old
+  addresses still work).
+* New: plain WordPress sites (no WooCommerce) can connect too, to read the SEO of pages and posts.
+* New: Settings → Approval log lists every change written after your approval, and every Undo.
+* Improved: low-stock reports use each product's own low-stock threshold and list products that do not track stock;
+  variable products show their price range.
+* Security: the connection uses an Application Password limited to the plugin's own routes, and every write needs a
+  single-use approval signed at the moment you approved. Deactivating or deleting the plugin revokes every Application
+  Password WordPress issued to AddSynapse (for all users of the site).
+* Optional anonymous usage info, off by default: a one-time notice on the plugin's own screen asks whether the site may
+  share the plugin, WordPress and WooCommerce versions, the site language and a random ID once a week. "No thanks" hides
+  it for good; Settings → "Anonymous usage info" turns it on or off. See External services, section 6.
 
 = 1.2.0 =
 * Leaner AI requests: a much smaller set of instructions, and only the tools and instructions a question needs (for
@@ -357,6 +430,9 @@ The readable source of the admin app is in the `src/` folder of the plugin, with
   everyone, without a connection or subscription.
 
 == Upgrade Notice ==
+
+= 1.3.0 =
+New: use your store from Claude with no API key — drafts you approve in the chat, exact Undo, many stores in one account. New welcome wizard. Optional, off-by-default anonymous usage info.
 
 = 1.2.0 =
 Lower AI cost per question (leaner requests), links to the new Store Assistant Pro add-on, and a one-time review request.

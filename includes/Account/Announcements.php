@@ -205,7 +205,7 @@ final class Announcements {
 			$ids[] = $id;
 			update_user_meta( get_current_user_id(), self::DISMISSED_META, array_slice( array_values( array_unique( $ids ) ), -100 ) );
 		}
-		wp_safe_redirect( 'settings' === $tab ? \Addsynapse\StoreAssistant\Admin\SettingsPage::url() : \Addsynapse\StoreAssistant\Admin\AdminPage::url() );
+		wp_safe_redirect( \Addsynapse\StoreAssistant\Admin\AdminPage::back_url( $tab ) );
 		exit;
 	}
 

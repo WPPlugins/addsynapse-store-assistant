@@ -78,7 +78,7 @@ final class ReviewRequest {
 			exit;
 		}
 		$tab = isset( $_POST['addsynapse_assistant_tab'] ) ? sanitize_key( wp_unslash( $_POST['addsynapse_assistant_tab'] ) ) : '';
-		wp_safe_redirect( 'settings' === $tab ? SettingsPage::url() : AdminPage::url() );
+		wp_safe_redirect( AdminPage::back_url( $tab ) );
 		exit;
 	}
 

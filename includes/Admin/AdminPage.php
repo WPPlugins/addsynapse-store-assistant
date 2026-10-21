@@ -9,6 +9,7 @@ namespace Addsynapse\StoreAssistant\Admin;
 
 use Addsynapse\StoreAssistant\Account\Announcements;
 use Addsynapse\StoreAssistant\Account\OptIn;
+use Addsynapse\StoreAssistant\Account\Usage;
 use Addsynapse\StoreAssistant\Config;
 use Addsynapse\StoreAssistant\Environment;
 use Addsynapse\StoreAssistant\Rest\RestRoutes;
@@ -48,7 +49,7 @@ final class AdminPage {
 	public function add_menu(): void {
 		$this->hook = AddsynapseMenu::add_page(
 			'Store Assistant',
-			'Store Assistant',
+			__( 'Chat', 'addsynapse-store-assistant' ),
 			Config::capability(),
 			self::SLUG,
 			array( $this, 'render' )
@@ -65,7 +66,7 @@ final class AdminPage {
 	 */
 	public function body_class( string $classes ): string {
 		$screen = get_current_screen();
-		if ( $screen && $screen->id === $this->hook && 'chat' === self::current_tab() ) {
+		if ( $screen && $screen->id === $this->hook ) {
 			$classes .= ' aiops-screen';
 		}
 		return $classes;
@@ -87,13 +88,6 @@ final class AdminPage {
 	 */
 	public function enqueue( string $hook_suffix ): void {
 		if ( $hook_suffix !== $this->hook ) {
-			return;
-		}
-		if ( self::is_settings_tab() ) {
-			// Server-rendered Settings: the small stylesheet + the «are you sure?» script, no React bundle.
-			self::enqueue_admin_css();
-			$script = ADDSYNAPSE_ASSISTANT_PLUGIN_DIR . 'assets/settings.js';
-			wp_enqueue_script( 'addsynapse-assistant-settings', ADDSYNAPSE_ASSISTANT_PLUGIN_URL . 'assets/settings.js', array(), ADDSYNAPSE_ASSISTANT_VERSION . '.' . ( is_readable( $script ) ? (int) filemtime( $script ) : 0 ), true );
 			return;
 		}
 		// The opt-in card / announcements above the chat are server-rendered.
@@ -125,27 +119,31 @@ final class AdminPage {
 			self::HANDLE,
 			'window.addsynapseAssistant = ' . wp_json_encode(
 				array(
-					'restRoot'    => esc_url_raw( rest_url( RestRoutes::NAMESPACE . '/' ) ),
-					'adminUrl'    => esc_url_raw( admin_url() ),
-					'homeUrl'     => esc_url_raw( home_url( '/' ) ),
-					'nonce'       => wp_create_nonce( 'wp_rest' ),
-					'locale'      => str_replace( '_', '-', get_user_locale() ),
-					'userId'      => (int) $user->ID,
-					'userName'    => $user->display_name,
-					'debug'       => defined( 'WP_DEBUG' ) && WP_DEBUG,
-					'version'     => ADDSYNAPSE_ASSISTANT_VERSION,
-					'streaming'   => Config::streaming_enabled(),
-					'settingsUrl' => esc_url_raw( SettingsPage::url() ),
-					'chatUrl'     => esc_url_raw( self::url() ),
-					'timezone'    => wp_timezone_string(),
+					'restRoot'      => esc_url_raw( rest_url( RestRoutes::NAMESPACE . '/' ) ),
+					'adminUrl'      => esc_url_raw( admin_url() ),
+					'homeUrl'       => esc_url_raw( home_url( '/' ) ),
+					'nonce'         => wp_create_nonce( 'wp_rest' ),
+					'locale'        => str_replace( '_', '-', get_user_locale() ),
+					'userId'        => (int) $user->ID,
+					'userName'      => $user->display_name,
+					'debug'         => defined( 'WP_DEBUG' ) && WP_DEBUG,
+					'version'       => ADDSYNAPSE_ASSISTANT_VERSION,
+					'streaming'     => Config::streaming_enabled(),
+					'settingsUrl'   => esc_url_raw( SettingsPage::url() ),
+					// Home: the setup wizard when the AI is not set up yet.
+					'setupUrl'      => esc_url_raw( HomePage::setup_url( 'key' ) ),
+					// «Try the chat» of the wizard: a fixed first question in the composer (never text from the URL).
+					'initialPrompt' => '1' === (string) filter_input( INPUT_GET, 'try', FILTER_SANITIZE_NUMBER_INT ) ? self::sample_prompt() : '',
+					'chatUrl'       => esc_url_raw( self::url() ),
+					'timezone'      => wp_timezone_string(),
 					// `shop` (WooCommerce) | `site` (plain WordPress): suggestions, /help, card links.
-					'siteType'    => Environment::site_type(),
-					'canSettings' => current_user_can( Config::settings_capability() ),
-					'voice'       => SettingsPage::voice_enabled(),
+					'siteType'      => Environment::site_type(),
+					'canSettings'   => current_user_can( Config::settings_capability() ),
+					'voice'         => SettingsPage::voice_enabled(),
 					// Links to the separate Store Assistant Pro add-on (none once another plugin provides it).
-					'pro'         => ProOffers::client_state(),
+					'pro'           => ProOffers::client_state(),
 					// Images from the chat: only when WordPress lets this user upload media.
-					'images'      => array(
+					'images'        => array(
 						'enabled'  => current_user_can( 'upload_files' ),
 						'maxBytes' => Config::image_max_bytes(),
 					),
@@ -156,70 +154,41 @@ final class AdminPage {
 	}
 
 	/**
-	 * Whether the Settings tab is requested.
+	 * The first question the wizard puts in the composer (reads only).
 	 */
-	public static function is_settings_tab(): bool {
-		return 'settings' === self::current_tab();
+	public static function sample_prompt(): string {
+		return __( 'Which of my products have no image or no description?', 'addsynapse-store-assistant' );
 	}
 
 	/**
-	 * Current tab: chat | settings.
-	 */
-	public static function current_tab(): string {
-		// Navigation only (which tab to show), matched against a fixed list — never an action.
-		$tab = sanitize_key( (string) filter_input( INPUT_GET, 'tab', FILTER_UNSAFE_RAW ) );
-		return 'settings' === $tab ? $tab : 'chat';
-	}
-
-	/**
-	 * URL of a tab.
+	 * URL of the chat.
 	 *
-	 * @param string $tab chat | settings.
+	 * @param string               $tab  Kept for compatibility (only «chat»).
+	 * @param array<string,string> $args Extra query args.
 	 */
-	public static function url( string $tab = 'chat' ): string {
-		$args = array( 'page' => self::SLUG );
-		if ( 'chat' !== $tab ) {
-			$args['tab'] = $tab;
-		}
-		return add_query_arg( $args, admin_url( 'admin.php' ) );
+	public static function url( string $tab = 'chat', array $args = array() ): string {
+		unset( $tab );
+		return add_query_arg( array_merge( array( 'page' => self::SLUG ), $args ), admin_url( 'admin.php' ) );
 	}
 
 	/**
-	 * Tab navigation (server-rendered pages).
+	 * Where a form posted from one of our screens returns.
 	 *
-	 * @param string $active Active tab.
+	 * @param string $tab home | chat | settings.
 	 */
-	private static function render_nav( string $active ): void {
-		$tabs = array(
-			'chat'     => __( 'Chat', 'addsynapse-store-assistant' ),
-			'settings' => __( 'Settings', 'addsynapse-store-assistant' ),
-		);
-		echo '<nav class="nav-tab-wrapper">';
-		foreach ( $tabs as $tab => $label ) {
-			$current = $tab === $active;
-			echo '<a class="nav-tab' . ( $current ? ' nav-tab-active' : '' ) . '"' . ( $current ? ' aria-current="page"' : '' ) . ' href="' . esc_url( 'settings' === $tab ? SettingsPage::url() : self::url( $tab ) ) . '">' . esc_html( $label ) . '</a>';
+	public static function back_url( string $tab ): string {
+		if ( 'settings' === $tab ) {
+			return SettingsPage::url();
 		}
-		echo '</nav>';
+		return 'home' === $tab ? HomePage::url() : self::url();
 	}
 
 	/**
-	 * Page markup (the React app mounts into #addsynapse-assistant-root; Settings is server-rendered).
+	 * Page markup (the React app mounts into #addsynapse-assistant-root).
 	 */
 	public function render(): void {
 		if ( ! current_user_can( Config::capability() ) ) {
 			wp_die( esc_html__( 'You are not allowed to access this page.', 'addsynapse-store-assistant' ) );
-		}
-		if ( self::is_settings_tab() ) {
-			if ( ! current_user_can( Config::settings_capability() ) ) {
-				wp_die( esc_html__( 'You are not allowed to access this page.', 'addsynapse-store-assistant' ) );
-			}
-			echo '<div class="wrap"><h1>' . esc_html( 'Store Assistant' ) . '</h1>';
-			self::render_nav( 'settings' );
-			Announcements::render( 'settings' );
-			ReviewRequest::render( 'settings' );
-			( new SettingsPage() )->render();
-			echo '</div>';
-			return;
 		}
 		if ( ! is_readable( ADDSYNAPSE_ASSISTANT_PLUGIN_DIR . 'build/index.js' ) ) {
 			echo '<div class="wrap"><div class="notice notice-error"><p>' . esc_html__( 'Store Assistant assets are missing. Run "npm run build" in the plugin folder.', 'addsynapse-store-assistant' ) . '</p></div></div>';
@@ -231,6 +200,7 @@ final class AdminPage {
 		Announcements::render( 'chat' );
 		ReviewRequest::render( 'chat' );
 		OptIn::render( 'chat' );
+		Usage::render( 'chat' );
 		echo '</div><div id="addsynapse-assistant-root" class="aiops-root"></div></div>';
 	}
 }

@@ -3,7 +3,8 @@
  * Uninstall (Plugins → Delete): removes EVERYTHING the plugin stored (wp.org guide §2.6, docs/13 → Α6).
  *
  * Deleting the plugin means deleting its data: chat history, change history (Undo is no longer possible),
- * settings and the AI key (also what 1.0.x stored: CSV uploads, connection keys). Content the approved changes wrote
+ * settings and the AI key (also what 1.0.x stored: CSV uploads, connection keys), and (1.3.0) every application password
+ * WordPress issued to AddSynapse on the «Authorize Application» screen, plus the Connect AI state and approval log. Content the approved changes wrote
  * into products, pages and menus stays — it belongs to the site. Images uploaded in the chat that no approved change ever
  * used (still «pending») are deleted with their files; images in use stay in the media library.
  *
@@ -18,6 +19,32 @@
 defined( 'WP_UNINSTALL_PLUGIN' ) || exit;
 
 /**
+ * Revokes every AddSynapse application password of the current site's users — matched by the fixed app_id that
+ * AddSynapse passes to the «Authorize Application» screen (same value as RemoteAccess::APP_ID; a test keeps them equal),
+ * never by name: passwords the owner created for other apps stay. Multisite: users of the site being cleaned.
+ */
+function addsynapse_assistant_uninstall_revoke_app_passwords() {
+	if ( ! class_exists( 'WP_Application_Passwords' ) ) {
+		return;
+	}
+	$app_id = '6f1c2a5e-8d3b-4c71-9e2a-ad5f0c3b7e41';
+	$users  = get_users(
+		array(
+			'meta_key' => WP_Application_Passwords::USERMETA_KEY_APPLICATION_PASSWORDS, // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key -- only users who have application passwords; uninstall only.
+			'fields'   => 'ID',
+			'number'   => -1,
+		)
+	);
+	foreach ( $users as $user_id ) {
+		foreach ( WP_Application_Passwords::get_user_application_passwords( (int) $user_id ) as $item ) {
+			if ( isset( $item['app_id'], $item['uuid'] ) && $app_id === $item['app_id'] ) {
+				WP_Application_Passwords::delete_application_password( (int) $user_id, (string) $item['uuid'] );
+			}
+		}
+	}
+}
+
+/**
  * Removes the plugin's data from the current site.
  */
 function addsynapse_assistant_uninstall_site() {
@@ -27,6 +54,9 @@ function addsynapse_assistant_uninstall_site() {
 	foreach ( array( 'conversations', 'messages', 'usage_log', 'changesets', 'changeset_items', 'uploads', 'upload_chunks' ) as $short ) {
 		$wpdb->query( $wpdb->prepare( 'DROP TABLE IF EXISTS %i', $wpdb->prefix . 'addsynapse_assistant_' . $short ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange
 	}
+
+	// 1.3.0: AddSynapse application passwords of this site's users (Remote/RemoteAccess::revoke_all()).
+	addsynapse_assistant_uninstall_revoke_app_passwords();
 
 	// Options (explicit).
 	$options = array(
@@ -50,6 +80,15 @@ function addsynapse_assistant_uninstall_site() {
 		'addsynapse_assistant_account',
 		'addsynapse_assistant_optin',
 		'addsynapse_assistant_announcements',
+		// 1.2.1: the optional anonymous usage info (choice + random id).
+		'addsynapse_assistant_usage',
+		// 1.3.0: Connect AI — the last setup check and the approval log (used ticket nonces go with the LIKE fallback).
+		'addsynapse_assistant_connect_check',
+		'addsynapse_assistant_remote_log',
+		// 1.3.0: the welcome wizard (finished / skipped, chosen way).
+		'addsynapse_assistant_onboarding',
+		// 1.3.0: the AddSynapse connection AddSynapse confirmed (uuid of the password, user, time — never the password).
+		'addsynapse_assistant_relay_claimed',
 	);
 	foreach ( $options as $option ) {
 		delete_option( $option );
@@ -93,7 +132,7 @@ function addsynapse_assistant_uninstall_site() {
 	}
 
 	// Scheduled work: WP-Cron events and Action Scheduler actions (also without WooCommerce loaded).
-	$hooks = array( 'addsynapse_assistant_imports_cleanup', 'addsynapse_assistant_images_cleanup', 'addsynapse_assistant_changeset_process' );
+	$hooks = array( 'addsynapse_assistant_imports_cleanup', 'addsynapse_assistant_images_cleanup', 'addsynapse_assistant_changeset_process', 'addsynapse_assistant_usage_ping' );
 	foreach ( $hooks as $hook ) {
 		wp_clear_scheduled_hook( $hook );
 		if ( function_exists( 'as_unschedule_all_actions' ) ) {

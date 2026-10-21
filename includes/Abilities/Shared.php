@@ -123,6 +123,43 @@ final class Shared {
 			'stock_quantity' => null === $quantity ? null : (int) $quantity,
 			'categories'     => self::term_names( $product ),
 			'edit_link'      => self::product_edit_link( $parent_id ? $parent_id : (int) $product->get_id() ),
+		) + self::price_range( $product );
+	}
+
+	/**
+	 * Variable product: the price range over its variations (WooCommerce gives the parent only the lowest price and
+	 * empty regular/sale prices). Empty array for any other type.
+	 *
+	 * @param \WC_Product $product Product.
+	 * @return array<string,mixed>
+	 */
+	public static function price_range( \WC_Product $product ): array {
+		if ( ! $product instanceof \WC_Product_Variable ) {
+			return array();
+		}
+		$prices  = $product->get_variation_prices( false );
+		$price   = array_map( 'floatval', array_values( (array) ( $prices['price'] ?? array() ) ) );
+		$regular = array_map( 'floatval', array_values( (array) ( $prices['regular_price'] ?? array() ) ) );
+		$sale    = array();
+		foreach ( (array) ( $prices['sale_price'] ?? array() ) as $id => $value ) {
+			// WooCommerce fills sale_price with the regular price when a variation is not on sale.
+			if ( isset( $prices['regular_price'][ $id ] ) && (float) $value < (float) $prices['regular_price'][ $id ] ) {
+				$sale[] = (float) $value;
+			}
+		}
+		if ( ! $price ) {
+			return array();
+		}
+		return array(
+			'price_range' => array(
+				'min'                => min( $price ),
+				'max'                => max( $price ),
+				'regular_min'        => $regular ? min( $regular ) : null,
+				'regular_max'        => $regular ? max( $regular ) : null,
+				'sale_min'           => $sale ? min( $sale ) : null,
+				'sale_max'           => $sale ? max( $sale ) : null,
+				'on_sale_variations' => count( $sale ),
+			),
 		);
 	}
 
@@ -170,6 +207,19 @@ final class Shared {
 					'items' => array( 'type' => 'string' ),
 				),
 				'edit_link'      => array( 'type' => 'string' ),
+				'price_range'    => array(
+					'type'                 => 'object',
+					'additionalProperties' => false,
+					'properties'           => array(
+						'min'                => array( 'type' => 'number' ),
+						'max'                => array( 'type' => 'number' ),
+						'regular_min'        => array( 'type' => array( 'number', 'null' ) ),
+						'regular_max'        => array( 'type' => array( 'number', 'null' ) ),
+						'sale_min'           => array( 'type' => array( 'number', 'null' ) ),
+						'sale_max'           => array( 'type' => array( 'number', 'null' ) ),
+						'on_sale_variations' => array( 'type' => 'integer' ),
+					),
+				),
 			),
 		);
 	}

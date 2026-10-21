@@ -12,10 +12,14 @@ use WP_Error;
 defined( 'ABSPATH' ) || exit;
 
 /**
- * Two calls exist, and nothing else ever contacts AddSynapse:
+ * Four calls exist, and nothing else ever contacts AddSynapse:
  *  - OptIn::handle_create(): `POST /api/v1/assistant/optin` — only when an administrator clicks «Create account»;
  *  - Announcements::maybe_fetch(): `POST /api/v1/assistant/announcements` — at most once a day, only after that, only while
  *    a user opens one of the plugin's own screens.
+ *  - Usage::allow() / Usage::heartbeat(): `POST /api/v1/assistant/usage` — only after an administrator clicked «Allow»
+ *    (anonymous usage info, off by default): once then, and at most once a week (WP-Cron).
+ *  - Remote\RelayClaim::handle(): `POST /api/v1/assistant/relay-claim` — only right after an administrator approved AddSynapse
+ *    on WordPress' own Authorize Application screen: once, the new application password in the JSON body (never a URL).
  * Host allowlist (guide §3.6): https://api.addsynapse.com only. Another host only on a DEVELOPMENT site and only the one a
  * developer put in wp-config.php (ADDSYNAPSE_ASSISTANT_API_URL); plain http only to an internal development host. Never
  * userinfo, never redirects, short timeouts.
@@ -30,6 +34,19 @@ final class Api {
 
 	/** Hosts of the AddSynapse websites a link from the API may open (download, portal). */
 	public const LINK_HOSTS = array( 'addsynapse.com', 'www.addsynapse.com', 'app.addsynapse.com', 'api.addsynapse.com' );
+
+	/** «Add to Claude» of the setup wizard: AddSynapse remembers which site to check, then opens Claude's connector page. */
+	public const CLAUDE_CONNECT_URL = 'https://app.addsynapse.com/store-assistant/connect';
+
+	/**
+	 * The «Add to Claude» link with this site's address (an ordinary link the administrator's browser opens; nothing is sent
+	 * by the server).
+	 *
+	 * @param string $site This site's address (home URL).
+	 */
+	public static function claude_connect_url( string $site ): string {
+		return add_query_arg( 'site', rawurlencode( untrailingslashit( $site ) ), self::CLAUDE_CONNECT_URL );
+	}
 
 	/**
 	 * Base URL ('' = the configured development URL is not allowed here).

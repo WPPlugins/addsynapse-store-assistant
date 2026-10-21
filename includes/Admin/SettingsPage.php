@@ -8,11 +8,14 @@
 
 namespace Addsynapse\StoreAssistant\Admin;
 
+use Addsynapse\StoreAssistant\Account\Announcements;
 use Addsynapse\StoreAssistant\Account\OptIn;
+use Addsynapse\StoreAssistant\Account\Usage;
 use Addsynapse\StoreAssistant\Config;
-use Addsynapse\StoreAssistant\Content\NeedsHuman;
 use Addsynapse\StoreAssistant\Environment;
+use Addsynapse\StoreAssistant\Content\NeedsHuman;
 use Addsynapse\StoreAssistant\Media\ImageUploads;
+use Addsynapse\StoreAssistant\Remote\SetupStatus;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -22,6 +25,16 @@ defined( 'ABSPATH' ) || exit;
  * only the chat requests of a logged-in user; nothing outside wp-admin can start anything on this site.
  */
 final class SettingsPage {
+
+	/** AddSynapse → Settings (1.3.0: its own menu item; was the «settings» tab of the Store Assistant page). */
+	public const SLUG = 'addsynapse-store-assistant-settings';
+
+	/**
+	 * Admin page hook suffix.
+	 *
+	 * @var string
+	 */
+	private $hook = '';
 
 	public const ACTION_CLEAR_NEEDS_HUMAN = 'addsynapse_assistant_clear_needs_human';
 
@@ -41,18 +54,98 @@ final class SettingsPage {
 		add_action( 'admin_post_' . self::ACTION_SAVE_VOICE, array( $this, 'handle_save_voice' ) );
 		add_action( 'admin_post_' . self::ACTION_SAVE_IMAGES, array( $this, 'handle_save_images' ) );
 		add_filter( 'plugin_action_links_' . plugin_basename( ADDSYNAPSE_ASSISTANT_PLUGIN_FILE ), array( $this, 'action_links' ) );
+		add_action( 'after_plugin_row_' . plugin_basename( ADDSYNAPSE_ASSISTANT_PLUGIN_FILE ), array( $this, 'setup_row' ), 10, 0 );
+		add_action( 'admin_menu', array( $this, 'add_menu' ), AddsynapseMenu::PRIORITY_SUBMENU );
+		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue' ) );
 	}
 
 	/**
-	 * «Settings» link on the Plugins screen.
+	 * AddSynapse → Settings.
+	 */
+	public function add_menu(): void {
+		$this->hook = AddsynapseMenu::add_page(
+			__( 'Store Assistant settings', 'addsynapse-store-assistant' ),
+			__( 'Settings', 'addsynapse-store-assistant' ),
+			Config::settings_capability(),
+			self::SLUG,
+			array( $this, 'render_page' )
+		);
+	}
+
+	/**
+	 * The small stylesheet + the «are you sure?» script (this screen only).
+	 *
+	 * @param string $hook_suffix Current screen hook.
+	 */
+	public function enqueue( $hook_suffix ): void {
+		if ( '' === $this->hook || $hook_suffix !== $this->hook ) {
+			return;
+		}
+		AdminPage::enqueue_admin_css();
+		$script = ADDSYNAPSE_ASSISTANT_PLUGIN_DIR . 'assets/settings.js';
+		wp_enqueue_script( 'addsynapse-assistant-settings', ADDSYNAPSE_ASSISTANT_PLUGIN_URL . 'assets/settings.js', array(), ADDSYNAPSE_ASSISTANT_VERSION . '.' . ( is_readable( $script ) ? (int) filemtime( $script ) : 0 ), true );
+	}
+
+	/**
+	 * The Settings screen (or its «Approval log» view).
+	 */
+	public function render_page(): void {
+		if ( ! current_user_can( Config::settings_capability() ) ) {
+			wp_die( esc_html__( 'You are not allowed to access this page.', 'addsynapse-store-assistant' ) );
+		}
+		if ( 'log' === self::query_flag( 'view' ) ) {
+			echo '<div class="wrap adsa-settings"><h1>' . esc_html__( 'Approval log', 'addsynapse-store-assistant' ) . '</h1>';
+			echo '<p><a href="' . esc_url( self::url() ) . '">' . esc_html__( '← Settings', 'addsynapse-store-assistant' ) . '</a></p>';
+			echo '<p>' . esc_html__( 'Every change AddSynapse wrote on this site after you approved it in Claude.', 'addsynapse-store-assistant' ) . '</p>';
+			ConnectPage::render_log();
+			echo '</div>';
+			return;
+		}
+		echo '<div class="wrap adsa-settings"><h1 class="wp-heading-inline">' . esc_html__( 'Settings', 'addsynapse-store-assistant' ) . '</h1>';
+		echo ' <a class="page-title-action" href="' . esc_url( HomePage::setup_url( 'choose' ) ) . '">' . esc_html__( 'Setup guide', 'addsynapse-store-assistant' ) . '</a><hr class="wp-header-end">';
+		Announcements::render( 'settings' );
+		ReviewRequest::render( 'settings' );
+		Usage::render( 'settings' );
+		$this->render();
+		echo '</div>';
+	}
+
+	/**
+	 * Our links on the Plugins screen (<b>, not <strong>: core shows a <strong> of the title cell as a block): «Get started» (the setup wizard, until the manager finished or skipped it and no way
+	 * works) or «Home», then «Settings» (also the wizard until then — the first thing to do is choose a way).
 	 *
 	 * @param array<int|string,string> $links Links.
 	 * @return array<int|string,string>
 	 */
 	public function action_links( $links ): array {
 		$links = is_array( $links ) ? $links : array();
-		array_unshift( $links, '<a href="' . esc_url( self::url() ) . '">' . esc_html__( 'Settings', 'addsynapse-store-assistant' ) . '</a>' );
-		return $links;
+		if ( ! current_user_can( Config::capability() ) ) {
+			return $links;
+		}
+		$setup = HomePage::needs_setup();
+		$ours  = array(
+			'addsynapse_assistant_start'    => $setup
+				? '<a href="' . esc_url( HomePage::setup_url( 'choose' ) ) . '"><b>' . esc_html__( 'Get started', 'addsynapse-store-assistant' ) . '</b></a>'
+				: '<a href="' . esc_url( HomePage::url() ) . '">' . esc_html__( 'Home', 'addsynapse-store-assistant' ) . '</a>',
+			'addsynapse_assistant_settings' => '<a href="' . esc_url( $setup ? HomePage::setup_url( 'choose' ) : self::url() ) . '">' . esc_html__( 'Settings', 'addsynapse-store-assistant' ) . '</a>',
+		);
+		return array_merge( $ours, $links );
+	}
+
+	/**
+	 * Under our own row of the Plugins list only, until the manager finished or skipped the wizard and no way works:
+	 * one line with a «Start setup» button. No notice on any other screen; it goes away by itself.
+	 */
+	public function setup_row(): void {
+		if ( ! current_user_can( Config::capability() ) || ! HomePage::needs_setup() ) {
+			return;
+		}
+		$table   = $GLOBALS['wp_list_table'] ?? null;
+		$columns = is_object( $table ) && method_exists( $table, 'get_column_count' ) ? (int) $table->get_column_count() : 3;
+		echo '<tr class="plugin-update-tr active adsa-setup-row"><td colspan="' . (int) max( 1, $columns ) . '" class="plugin-update colspanchange">';
+		echo '<div class="notice inline notice-info notice-alt"><p>' . esc_html__( 'Almost done: choose how you want to use Store Assistant — from Claude, or in a chat here in WordPress.', 'addsynapse-store-assistant' ) . ' ';
+		echo '<a class="button button-primary button-small" href="' . esc_url( HomePage::setup_url( 'choose' ) ) . '">' . esc_html__( 'Start setup', 'addsynapse-store-assistant' ) . '</a></p></div>';
+		echo '</td></tr>';
 	}
 
 	/**
@@ -111,10 +204,7 @@ final class SettingsPage {
 	public static function url( array $args = array() ): string {
 		return add_query_arg(
 			array_merge(
-				array(
-					'page' => AdminPage::SLUG,
-					'tab'  => 'settings',
-				),
+				array( 'page' => self::SLUG ),
 				$args
 			),
 			admin_url( 'admin.php' )
@@ -140,11 +230,13 @@ final class SettingsPage {
 			echo '<div class="notice notice-success inline"><p>' . esc_html__( 'Settings saved.', 'addsynapse-store-assistant' ) . '</p></div>';
 		}
 
-		echo '<h2>' . esc_html__( 'AI connection', 'addsynapse-store-assistant' ) . '</h2>';
+		self::render_mcp();
+		echo '<h2>' . esc_html__( 'Chat here in WordPress', 'addsynapse-store-assistant' ) . '</h2>';
 		echo '<p>' . esc_html__( 'The assistant answers in the chat with your own AI key (Anthropic or OpenAI). Slash commands (type /help in the chat), previews, Approve and Undo work without it.', 'addsynapse-store-assistant' ) . '</p>';
 		OwnKeySection::render( $notice );
 		OptIn::render( 'settings' );
 		OptIn::render_settings();
+		Usage::render_settings();
 
 		/**
 		 * Extra Settings sections of extensions (rendered after the AI connection).
@@ -154,7 +246,24 @@ final class SettingsPage {
 		self::render_images();
 		self::render_voice();
 		self::render_needs_human();
-		self::render_pro();
+	}
+
+	/**
+	 * «Claude»: the state of the AddSynapse connection, the setup steps and the approval log.
+	 */
+	private static function render_mcp(): void {
+		$status = SetupStatus::connection();
+		echo '<h2 id="addsynapse-assistant-mcp">' . esc_html__( 'Claude', 'addsynapse-store-assistant' ) . '</h2>';
+		if ( $status['connected'] ) {
+			/* translators: %s: user login */
+			echo '<p>' . esc_html( sprintf( __( 'Connected. Approved by %s.', 'addsynapse-store-assistant' ), (string) $status['detail']['user'] ) ) . '</p>';
+			echo '<p><a class="button" href="' . esc_url( HomePage::setup_url( 'mcp' ) ) . '">' . esc_html__( 'Setup steps', 'addsynapse-store-assistant' ) . '</a> ';
+		} else {
+			echo '<p>' . esc_html( 'site' === Environment::site_type() ? __( 'Not connected yet. Use your site from claude.ai, without an API key.', 'addsynapse-store-assistant' ) : __( 'Not connected yet. Use your store from claude.ai, without an API key.', 'addsynapse-store-assistant' ) ) . '</p>';
+			echo '<p class="adsa-settings__actions"><a class="button button-primary" href="' . esc_url( HomePage::setup_url( 'mcp' ) ) . '">' . esc_html__( 'Connect to Claude', 'addsynapse-store-assistant' ) . '</a> ';
+		}
+		/* translators: %d: number of entries */
+		echo '<a class="button-link" href="' . esc_url( self::url( array( 'view' => 'log' ) ) ) . '">' . esc_html( sprintf( _n( 'Approval log (%d entry)', 'Approval log (%d entries)', (int) $status['log_count'], 'addsynapse-store-assistant' ), (int) $status['log_count'] ) ) . '</a></p>';
 	}
 
 	/**
@@ -170,38 +279,6 @@ final class SettingsPage {
 		echo '<p class="description aiops-settings-note">' . esc_html__( 'On by default: when you attach an image, a reduced copy (max 1024 px) is sent with that message to your AI provider, so it can see it (it costs a little more per message). Nothing is sent for messages without an image. When off, the AI only knows the file name, size and dimensions.', 'addsynapse-store-assistant' ) . '</p>';
 		submit_button( __( 'Save', 'addsynapse-store-assistant' ), 'secondary' );
 		echo '</form>';
-	}
-
-	/**
-	 * «Store Assistant Pro»: what the separate add-on adds, with a link to its page (information only; nothing here checks
-	 * for it). Hidden once another plugin provides the Pro features.
-	 */
-	private static function render_pro(): void {
-		if ( ! ProOffers::shown() ) {
-			return;
-		}
-		$items = array();
-		if ( Environment::has_woocommerce() ) {
-			$items[] = __( 'Bulk changes: prices, stock and product details for a whole category, a brand or the whole catalogue', 'addsynapse-store-assistant' );
-			$items[] = __( 'Price and stock import from a CSV file', 'addsynapse-store-assistant' );
-			$items[] = __( 'Creating, renaming and merging categories, tags and brands', 'addsynapse-store-assistant' );
-			$items[] = __( 'Product attributes and variations, custom fields, other product settings', 'addsynapse-store-assistant' );
-			$items[] = __( 'Coupons and orders', 'addsynapse-store-assistant' );
-		}
-		$items[] = __( 'Site appearance: menus, page texts, sections and banners, posts and blog categories', 'addsynapse-store-assistant' );
-		$items[] = __( 'SEO and image alt texts at scale, content writing', 'addsynapse-store-assistant' );
-		$items[] = __( 'A full change history with undo of older changes', 'addsynapse-store-assistant' );
-		$items[] = __( 'Our AI included, no API key needed', 'addsynapse-store-assistant' );
-		echo '<div class="aiops-connector__card aiops-pro-card" id="addsynapse-assistant-pro">';
-		echo '<h2>' . esc_html__( 'Store Assistant Pro', 'addsynapse-store-assistant' ) . '</h2>';
-		echo '<p>' . esc_html__( 'This plugin is free and edits one product at a time. Store Assistant Pro is a separate add-on for work beyond single products:', 'addsynapse-store-assistant' ) . '</p>';
-		echo '<ul class="aiops-pro-card__list">';
-		foreach ( $items as $item ) {
-			echo '<li><span class="aiops-pro-card__badge"><span class="dashicons dashicons-lock" aria-hidden="true"></span>' . esc_html__( 'Pro', 'addsynapse-store-assistant' ) . '</span> ' . esc_html( $item ) . '</li>';
-		}
-		echo '</ul>';
-		echo '<p><a class="button button-primary" href="' . esc_url( ProOffers::url( 'settings' ) ) . '" target="_blank" rel="noopener noreferrer">' . esc_html__( 'See Pro', 'addsynapse-store-assistant' ) . '<span class="screen-reader-text"> ' . esc_html__( '(opens in a new tab)', 'addsynapse-store-assistant' ) . '</span></a></p>';
-		echo '</div>';
 	}
 
 	/**

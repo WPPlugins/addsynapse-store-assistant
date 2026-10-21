@@ -13,7 +13,6 @@
 namespace Addsynapse\StoreAssistant\Admin;
 
 use Addsynapse\StoreAssistant\Capabilities;
-use Addsynapse\StoreAssistant\Byok\KeyStore;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -36,19 +35,19 @@ final class AddsynapseMenu {
 
 	/** Display order per slug (shared contract); unknown slugs → 100, in registration order. */
 	public const ORDER = array(
-		'addsynapse'                     => 0,
-		'addsynapse-store-assistant'     => 10,
-		// «Upgrade to Pro» of the Store Assistant (a link to the add-on's page), right below it.
-		'addsynapse-store-assistant-pro' => 11,
-		'addsynapse-search'              => 20,
-		'addsynapse-connector'           => 30,
+		'addsynapse'                          => 0,
+		// Store Assistant: Chat, then its Settings (1.3.0: «Upgrade to Pro» and «Connect AI» are no longer menu items).
+		'addsynapse-store-assistant'          => 10,
+		'addsynapse-store-assistant-settings' => 11,
+		'addsynapse-search'                   => 20,
+		'addsynapse-connector'                => 30,
 	);
 
 	/** Menu position (string: avoids the WooCommerce Marketing slot at 58). */
 	public const POSITION = '58.7';
 
 	/** Version of OUR Overview renderer (bump when it changes, always compatible with the card schema). */
-	public const RENDERER_VERSION = '1.0.0';
+	public const RENDERER_VERSION = '2.0.0';
 
 	/** The customer portal. */
 	public const PORTAL_URL = 'https://addsynapse.com';
@@ -112,7 +111,7 @@ final class AddsynapseMenu {
 		$cap = self::capability();
 		// «AddSynapse» is the brand — never translated.
 		add_menu_page( 'AddSynapse', 'AddSynapse', $cap, self::PARENT_SLUG, array( self::class, 'render_overview' ), self::ICON, self::POSITION );
-		add_submenu_page( self::PARENT_SLUG, 'AddSynapse', __( 'Overview', 'addsynapse-store-assistant' ), $cap, self::PARENT_SLUG, array( self::class, 'render_overview' ), self::ORDER[ self::PARENT_SLUG ] );
+		add_submenu_page( self::PARENT_SLUG, 'AddSynapse', __( 'Home', 'addsynapse-store-assistant' ), $cap, self::PARENT_SLUG, array( self::class, 'render_overview' ), self::ORDER[ self::PARENT_SLUG ] );
 	}
 
 	/**
@@ -153,14 +152,14 @@ final class AddsynapseMenu {
 	 */
 	public static function describe_product( $products ): array {
 		$products                      = is_array( $products ) ? $products : array();
-		$connected                     = KeyStore::active();
+		$connected                     = HomePage::is_set_up();
 		$products['ai-shop-assistant'] = array(
 			'id'           => 'ai-shop-assistant',
 			'name'         => 'Store Assistant',
 			'version'      => defined( 'ADDSYNAPSE_ASSISTANT_VERSION' ) ? ADDSYNAPSE_ASSISTANT_VERSION : '',
 			'status'       => $connected ? 'connected' : 'not_connected',
-			'status_label' => $connected ? __( 'Ready', 'addsynapse-store-assistant' ) : __( 'Not set up — add your AI key in Settings', 'addsynapse-store-assistant' ),
-			'settings_url' => SettingsPage::url(),
+			'status_label' => $connected ? __( 'Ready', 'addsynapse-store-assistant' ) : __( 'Not set up yet', 'addsynapse-store-assistant' ),
+			'settings_url' => HomePage::url(),
 			'description'  => __( 'Ask in plain language for shop, page, menu and SEO changes; every change is a draft you approve.', 'addsynapse-store-assistant' ),
 			'icon'         => 'dashicons-format-chat',
 			'capability'   => Capabilities::resolve(),
@@ -230,66 +229,60 @@ final class AddsynapseMenu {
 	 */
 	public static function enqueue( $hook_suffix ): void {
 		if ( 'toplevel_page_' . self::PARENT_SLUG === $hook_suffix ) {
-			AdminPage::enqueue_admin_css();
+			HomePage::enqueue();
 		}
 	}
 
 	/**
-	 * Our Overview renderer (version RENDERER_VERSION) — same markup/classes as the reference one.
+	 * Our Overview renderer (version RENDERER_VERSION): the Store Assistant Home / welcome wizard, with the cards of the
+	 * other AddSynapse plugins at the bottom of Home.
 	 */
 	public static function render_overview_body(): void {
-		$products       = self::products();
+		HomePage::render();
+	}
+
+	/**
+	 * Product cards (same markup/classes as the reference Overview).
+	 *
+	 * @param array<string,array<string,string>> $products Normalised cards (products()).
+	 */
+	public static function render_cards( array $products ): void {
 		$default_labels = array(
 			'connected'     => __( 'Connected', 'addsynapse-store-assistant' ),
 			'not_connected' => __( 'Not connected', 'addsynapse-store-assistant' ),
 			'error'         => __( 'Needs attention', 'addsynapse-store-assistant' ),
 		);
 		?>
-		<div class="wrap addsynapse-overview">
-			<div class="addsynapse-overview-head">
-				<h1>AddSynapse</h1>
-				<a class="button" href="<?php echo esc_url( self::PORTAL_URL ); ?>" target="_blank" rel="noopener noreferrer">
-					<?php esc_html_e( 'Visit addsynapse.com', 'addsynapse-store-assistant' ); ?>
-					<span class="screen-reader-text"><?php esc_html_e( '(opens in a new tab)', 'addsynapse-store-assistant' ); ?></span>
-				</a>
-			</div>
-			<hr class="wp-header-end">
-			<p><?php esc_html_e( 'The AddSynapse plugins installed on this site.', 'addsynapse-store-assistant' ); ?></p>
-			<?php if ( empty( $products ) ) : ?>
-				<p><em><?php esc_html_e( 'No AddSynapse plugin has registered itself here yet.', 'addsynapse-store-assistant' ); ?></em></p>
-			<?php else : ?>
-				<div class="addsynapse-overview-grid">
-					<?php foreach ( $products as $p ) : ?>
-						<div class="addsynapse-card" data-product="<?php echo esc_attr( $p['id'] ); ?>">
-							<div class="addsynapse-card-top">
-								<?php self::render_icon( $p['icon'] ); ?>
-								<div>
-									<h2><?php echo esc_html( $p['name'] ); ?></h2>
-									<?php if ( '' !== $p['version'] ) : ?>
-										<span class="addsynapse-card-version">
-											<?php
-											/* translators: %s: plugin version number */
-											echo esc_html( sprintf( __( 'Version %s', 'addsynapse-store-assistant' ), $p['version'] ) );
-											?>
-										</span>
-									<?php endif; ?>
-								</div>
-							</div>
-							<span class="addsynapse-status addsynapse-status-<?php echo esc_attr( $p['status'] ); ?>">
-								<?php echo esc_html( '' !== $p['status_label'] ? $p['status_label'] : $default_labels[ $p['status'] ] ); ?>
-							</span>
-							<?php if ( '' !== $p['description'] ) : ?>
-								<p><?php echo esc_html( $p['description'] ); ?></p>
-							<?php endif; ?>
-							<?php if ( '' !== $p['settings_url'] ) : ?>
-								<div class="addsynapse-card-actions">
-									<a class="button button-primary" href="<?php echo esc_url( $p['settings_url'] ); ?>"><?php esc_html_e( 'Settings', 'addsynapse-store-assistant' ); ?></a>
-								</div>
+		<div class="addsynapse-overview-grid">
+			<?php foreach ( $products as $p ) : ?>
+				<div class="addsynapse-card" data-product="<?php echo esc_attr( $p['id'] ); ?>">
+					<div class="addsynapse-card-top">
+						<?php self::render_icon( $p['icon'] ); ?>
+						<div>
+							<h2><?php echo esc_html( $p['name'] ); ?></h2>
+							<?php if ( '' !== $p['version'] ) : ?>
+								<span class="addsynapse-card-version">
+									<?php
+									/* translators: %s: plugin version number */
+									echo esc_html( sprintf( __( 'Version %s', 'addsynapse-store-assistant' ), $p['version'] ) );
+									?>
+								</span>
 							<?php endif; ?>
 						</div>
-					<?php endforeach; ?>
+					</div>
+					<span class="addsynapse-status addsynapse-status-<?php echo esc_attr( $p['status'] ); ?>">
+						<?php echo esc_html( '' !== $p['status_label'] ? $p['status_label'] : $default_labels[ $p['status'] ] ); ?>
+					</span>
+					<?php if ( '' !== $p['description'] ) : ?>
+						<p><?php echo esc_html( $p['description'] ); ?></p>
+					<?php endif; ?>
+					<?php if ( '' !== $p['settings_url'] ) : ?>
+						<div class="addsynapse-card-actions">
+							<a class="button button-primary" href="<?php echo esc_url( $p['settings_url'] ); ?>"><?php esc_html_e( 'Settings', 'addsynapse-store-assistant' ); ?></a>
+						</div>
+					<?php endif; ?>
 				</div>
-			<?php endif; ?>
+			<?php endforeach; ?>
 		</div>
 		<?php
 	}

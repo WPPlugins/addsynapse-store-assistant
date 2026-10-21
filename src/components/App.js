@@ -71,7 +71,8 @@ export default function App() {
 	const [ activeId, setActiveId ] = useState( null );
 	const [ messages, setMessages ] = useState( [] );
 	const [ threadLoading, setThreadLoading ] = useState( false );
-	const [ input, setInput ] = useState( '' );
+	// «Try the chat» of the setup wizard opens the chat with a fixed first question in the composer.
+	const [ input, setInput ] = useState( () => settings.initialPrompt || '' );
 	const [ busy, setBusy ] = useState( false );
 	const [ live, setLive ] = useState( EMPTY_LIVE );
 	const [ error, setError ] = useState( null );
@@ -1023,10 +1024,15 @@ export default function App() {
 									'The AI answers once an administrator adds an AI provider key in Settings. Slash commands (type /help) already work.',
 									'addsynapse-store-assistant'
 								) }{ ' ' }
-								{ settings.settingsUrl && (
-									<a href={ settings.settingsUrl }>
+								{ ( settings.setupUrl || settings.settingsUrl ) && (
+									<a
+										href={
+											settings.setupUrl ||
+											settings.settingsUrl
+										}
+									>
 										{ __(
-											'Settings',
+											'Set up',
 											'addsynapse-store-assistant'
 										) }
 									</a>

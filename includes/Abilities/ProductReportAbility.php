@@ -51,9 +51,16 @@ final class ProductReportAbility {
 	private const SQL_WHERE_MISSING_IMAGE       = "p.post_type = 'product' AND p.post_status = 'publish' AND ( m.meta_value IS NULL OR m.meta_value IN ( '', '0' ) )";
 	private const SQL_WHERE_MISSING_DESCRIPTION = "p.post_type = 'product' AND p.post_status = 'publish' AND TRIM( p.post_content ) = ''";
 	private const SQL_WHERE_MISSING_PRICE       = self::SQL_VISIBLE . ' AND ' . self::SQL_NO_CHILDREN . " AND ( m.meta_value IS NULL OR m.meta_value = '' )";
-	private const SQL_ORDER_STOCK               = 'l.stock_quantity ASC, p.ID ASC';
-	private const SQL_ORDER_TITLE               = 'p.post_title ASC, p.ID ASC';
-	private const SQL_ORDER_NEWEST              = 'p.ID DESC';
+	// Per-product low-stock threshold (own, else the parent's for a variation, else the store setting %d) — like wc_get_low_stock_amount().
+	private const SQL_JOIN_LOW_STOCK_AMOUNT = " LEFT JOIN %i lsa ON lsa.post_id = p.ID AND lsa.meta_key = '_low_stock_amount' LEFT JOIN %i plsa ON plsa.post_id = p.post_parent AND plsa.meta_key = '_low_stock_amount'";
+	private const SQL_WHERE_LOW_STOCK_OWN   = self::SQL_VISIBLE . " AND l.stock_quantity IS NOT NULL AND l.stock_status <> 'outofstock' AND l.stock_quantity <= CAST( COALESCE( NULLIF( lsa.meta_value, '' ), NULLIF( plsa.meta_value, '' ), %d ) AS SIGNED ) AND l.stock_quantity > %d";
+	// Stock not tracked: neither the product/variation nor (for a variation) its parent manages stock — no count to report.
+	private const SQL_JOIN_MANAGE_STOCK = " LEFT JOIN %i ms ON ms.post_id = p.ID AND ms.meta_key = '_manage_stock' LEFT JOIN %i pms ON pms.post_id = p.post_parent AND pms.meta_key = '_manage_stock'";
+	private const SQL_WHERE_NOT_TRACKED = self::SQL_VISIBLE . ' AND ' . self::SQL_NO_CHILDREN . " AND COALESCE( ms.meta_value, 'no' ) <> 'yes' AND ( p.post_type = 'product' OR COALESCE( pms.meta_value, 'no' ) <> 'yes' )";
+	private const NOT_TRACKED_MAX       = 50;
+	private const SQL_ORDER_STOCK       = 'l.stock_quantity ASC, p.ID ASC';
+	private const SQL_ORDER_TITLE       = 'p.post_title ASC, p.ID ASC';
+	private const SQL_ORDER_NEWEST      = 'p.ID DESC';
 
 	/**
 	 * Registers the ability.
@@ -63,7 +70,7 @@ final class ProductReportAbility {
 			self::NAME,
 			array(
 				'label'               => __( 'Product report', 'addsynapse-store-assistant' ),
-				'description'         => 'Read-only store reports. report = low_stock (managed stock <= threshold, default the WooCommerce low-stock setting), out_of_stock, missing_image, missing_description, missing_price (these list published products/variations with total count), best_sellers (top products by quantity in a period; variations rolled up to their parent product) or sales_summary (revenue, refunds, orders count, average order, items sold, top products and a series per day/week/month in a period; paid statuses only). Optional filters for every report: category, tag, brand, attribute {name, value}, product_ids. period: today, 7d, 30d (default), month, custom (date_from/date_to). limit default 20, max 100. Sales scan at most 2000 orders; larger periods return partial=true.',
+				'description'         => 'Read-only store reports. report = low_stock (managed stock <= threshold: the own low-stock threshold of each product when set, else the WooCommerce setting; a given threshold applies to all; also not_tracked = products/variations without stock tracking), out_of_stock, missing_image, missing_description, missing_price (these list published products/variations with total count), best_sellers (top products by quantity in a period; variations rolled up to their parent product) or sales_summary (revenue, refunds, orders count, average order, items sold, top products and a series per day/week/month in a period; paid statuses only). Optional filters for every report: category, tag, brand, attribute {name, value}, product_ids. period: today, 7d, 30d (default), month, custom (date_from/date_to). limit default 20, max 100. Sales scan at most 2000 orders; larger periods return partial=true.',
 				'category'            => AbilitiesRegistrar::CATEGORY,
 				'input_schema'        => self::input_schema(),
 				'output_schema'       => self::output_schema(),
@@ -155,6 +162,18 @@ final class ProductReportAbility {
 				'total'            => array( 'type' => 'integer' ),
 				'limit'            => array( 'type' => 'integer' ),
 				'threshold'        => array( 'type' => 'integer' ),
+				'not_tracked'      => array(
+					'type'                 => 'object',
+					'additionalProperties' => false,
+					'properties'           => array(
+						'total' => array( 'type' => 'integer' ),
+						'items' => array(
+							'type'  => 'array',
+							'items' => Shared::product_row_schema(),
+						),
+						'note'  => array( 'type' => 'string' ),
+					),
+				),
 				'items'            => array(
 					'type'  => 'array',
 					'items' => Shared::product_row_schema(),
@@ -292,15 +311,23 @@ final class ProductReportAbility {
 
 		switch ( $report ) {
 			case 'low_stock':
-				$threshold        = isset( $input['threshold'] ) ? (int) $input['threshold'] : (int) get_option( 'woocommerce_notify_low_stock_amount', 2 );
+				$given            = isset( $input['threshold'] );
+				$threshold        = $given ? (int) $input['threshold'] : (int) get_option( 'woocommerce_notify_low_stock_amount', 2 );
 				$no_stock         = (int) get_option( 'woocommerce_notify_no_stock_amount', 0 );
 				$out['threshold'] = $threshold;
-				$join             = self::SQL_JOIN_LOOKUP;
-				$where            = self::SQL_WHERE_LOW_STOCK;
+				$join             = self::SQL_JOIN_LOOKUP . ( $given ? '' : self::SQL_JOIN_LOW_STOCK_AMOUNT );
+				$where            = $given ? self::SQL_WHERE_LOW_STOCK : self::SQL_WHERE_LOW_STOCK_OWN;
 				$order            = self::SQL_ORDER_STOCK;
 				$tables[]         = $wpdb->wc_product_meta_lookup;
-				$params           = array( $threshold, $no_stock );
-				$notes[]          = 'Only products that manage stock; the global threshold is used (per-product low-stock overrides are ignored).';
+				if ( ! $given ) {
+					$tables[] = $wpdb->postmeta;
+					$tables[] = $wpdb->postmeta;
+				}
+				$params  = array( $threshold, $no_stock );
+				$notes[] = $given
+					? 'Only products that manage stock; the given threshold is used for every product.'
+					: 'Only products that manage stock; each product\'s own low-stock threshold is used when set, else the store setting (threshold).';
+				$notes[] = 'Products/variations that do not track stock have no count: they are listed separately in not_tracked.';
 				break;
 			case 'out_of_stock':
 				$join     = self::SQL_JOIN_LOOKUP;
@@ -348,6 +375,10 @@ final class ProductReportAbility {
 		$ids   = (array) $wpdb->get_col( $wpdb->prepare( $ids_sql, array_merge( $params, array( $limit ) ) ) );
 		// phpcs:enable
 
+		if ( 'low_stock' === $report ) {
+			$out['not_tracked'] = self::not_tracked( min( $limit, self::NOT_TRACKED_MAX ), $filters ? $ids_in : null );
+		}
+
 		return $out + array(
 			'total'    => $total,
 			'limit'    => $limit,
@@ -355,6 +386,34 @@ final class ProductReportAbility {
 			'currency' => Shared::currency(),
 			'notes'    => $notes,
 			'_data'    => Shared::DATA_NOTICE,
+		);
+	}
+
+	/**
+	 * Published products/variations that do not track stock (low_stock report): no count, the status is set by hand.
+	 *
+	 * @param int             $limit  Max rows.
+	 * @param array<int>|null $ids_in Parent ids of the product filter (null = no filter), like product_list.
+	 * @return array<string,mixed>
+	 */
+	private static function not_tracked( int $limit, ?array $ids_in ): array {
+		global $wpdb;
+		$filters   = null === $ids_in ? array() : array( true );
+		$ids_in    = $ids_in ? array_values( array_map( 'intval', $ids_in ) ) : array( 0 );
+		$in        = implode( ',', array_fill( 0, count( $ids_in ), '%d' ) );
+		$only      = implode( '', array_fill( 0, count( $filters ), " AND ( p.ID IN ( {$in} ) OR ( p.post_type = 'product_variation' AND p.post_parent IN ( {$in} ) ) )" ) );
+		$params    = array_merge( array( $wpdb->posts, $wpdb->posts, $wpdb->postmeta, $wpdb->postmeta, $wpdb->posts ), $filters ? array_merge( $ids_in, $ids_in ) : array() );
+		$count_sql = ( 'SELECT COUNT(*) FROM ' . self::SQL_FROM . self::SQL_JOIN_MANAGE_STOCK . ' WHERE ' . self::SQL_WHERE_NOT_TRACKED . $only );
+		$ids_sql   = ( 'SELECT p.ID FROM ' . self::SQL_FROM . self::SQL_JOIN_MANAGE_STOCK . ' WHERE ' . self::SQL_WHERE_NOT_TRACKED . $only . ' ORDER BY ' . self::SQL_ORDER_TITLE . ' LIMIT %d' );
+		// phpcs:disable WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- fixed SQL constants, tables/values are placeholders; a live stock report (no cache).
+		$total = (int) $wpdb->get_var( $wpdb->prepare( $count_sql, $params ) );
+		$ids   = (array) $wpdb->get_col( $wpdb->prepare( $ids_sql, array_merge( $params, array( $limit ) ) ) );
+		// phpcs:enable
+
+		return array(
+			'total' => $total,
+			'items' => Shared::product_rows( array_map( 'intval', $ids ) ),
+			'note'  => 'These do not track stock (no quantity); their stock status is set by hand.',
 		);
 	}
 

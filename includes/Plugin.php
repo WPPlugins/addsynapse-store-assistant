@@ -17,6 +17,7 @@ use Addsynapse\StoreAssistant\Admin\ReviewRequest;
 use Addsynapse\StoreAssistant\Admin\AdminBarLink;
 use Addsynapse\StoreAssistant\Account\Announcements;
 use Addsynapse\StoreAssistant\Account\OptIn;
+use Addsynapse\StoreAssistant\Account\Usage;
 use Addsynapse\StoreAssistant\Changesets\ChangesetService;
 use Addsynapse\StoreAssistant\Discovery\StoreMap;
 use Addsynapse\StoreAssistant\Discovery\StoreSummary;
@@ -87,10 +88,17 @@ final class Plugin {
 			new RestRoutes(),
 			// Toolbar link to the chat (wp-admin and front end, users with the capability).
 			AdminBarLink::class,
+			// AI apps through AddSynapse: scoped application password + remote routes (inactive until the owner approves).
+			\Addsynapse\StoreAssistant\Remote\RemoteAccess::class,
+			// Optional anonymous usage info (off by default; the weekly WP-Cron call runs only after «Allow»).
+			new Usage(),
 		);
 		if ( $admin ) {
-			// Shared «AddSynapse» top-level menu + Overview (docs/ADMIN-MENU.md).
+			// Shared «AddSynapse» top-level menu (docs/ADMIN-MENU.md): Home (welcome wizard / status), Chat, Settings.
 			$list[] = AddsynapseMenu::class;
+			// WordPress «Authorize Application» → back here → the password handed to AddSynapse server-to-server, never in a URL to it.
+			$list[] = \Addsynapse\StoreAssistant\Remote\RelayClaim::class;
+			$list[] = new \Addsynapse\StoreAssistant\Admin\HomePage();
 			$list[] = new AdminPage();
 			$list[] = new SettingsPage();
 			// Settings → «Your own AI key»: save + test, remove.
@@ -98,7 +106,7 @@ final class Plugin {
 			// Optional AddSynapse account (opt-in card) and short announcements — the plugin's own screens only.
 			$list[] = new OptIn();
 			$list[] = new Announcements();
-			// Links to the separate Store Assistant Pro add-on (menu item, Plugins row) and the one-time review request.
+			// Links to the separate Store Assistant Pro add-on (Home, Plugins row) and the one-time review request.
 			$list[] = new ProOffers();
 			$list[] = new ReviewRequest();
 		}
