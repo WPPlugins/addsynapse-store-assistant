@@ -1,7 +1,8 @@
 <?php
 /**
  * Ability: writes a change set the shop owner approved on AddSynapse (or restores it on Undo) — price/stock
- * fields of products and variations, SEO title/description of products, pages and posts, coupons. Never
+ * fields of products and variations, SEO title/description of products, pages and posts, coupons, page/post content and
+ * status, featured images and navigation menus (StateUnits). Never
  * offered to the in-admin chat (no agent meta) — only to the remote route.
  *
  * All-or-nothing pre-check: every unit must still hold the expected («before») values, otherwise nothing is
@@ -37,7 +38,7 @@ final class ApplyChangesAbility {
 			self::NAME,
 			array(
 				'label'               => __( 'Apply an approved change set', 'addsynapse-store-assistant' ),
-				'description'         => 'Writes the values of a change set the shop owner approved (or restores them on Undo): price/stock fields of products and variations, SEO title/description, coupons. Refuses everything if anything no longer holds the expected values.',
+				'description'         => 'Writes the values of a change set the shop owner approved (or restores them on Undo): price/stock fields of products and variations, SEO title/description, coupons, page/post content and status, featured images, navigation menus. Refuses everything if anything no longer holds the expected values.',
 				'category'            => AbilitiesRegistrar::CATEGORY,
 				'input_schema'        => array(
 					'type'                 => 'object',
@@ -122,9 +123,10 @@ final class ApplyChangesAbility {
 				'conflicts' => $conflicts,
 			);
 		}
-		$ids  = array();
-		$rows = array();
-		foreach ( $items as $item ) {
+		$ids     = array();
+		$rows    = array();
+		$written = array();
+		foreach ( $items as $index => $item ) {
 			$kind   = (string) $item['kind'];
 			$set    = is_array( $item['set'] ) ? $item['set'] : null;
 			$before = (int) $item['id'] ? StateUnits::read(
@@ -135,18 +137,29 @@ final class ApplyChangesAbility {
 			) : array();
 			$id     = StateUnits::write( $kind, (int) $item['id'], $set );
 			$ids[]  = $id;
+			if ( 'menu' === $kind ) {
+				// What the menu adapter stored (new items now have ids): AddSynapse expects exactly this on Undo.
+				$stored            = StateUnits::read(
+					array(
+						'kind' => $kind,
+						'id'   => $id,
+					)
+				);
+				$written[ $index ] = $stored['values'];
+			}
 			$rows[] = array(
 				'id'   => $id,
 				'kind' => $kind,
 				'name' => ! empty( $before['exists'] ) ? (string) $before['name'] : (string) ( $set['code'] ?? '' ),
-				'from' => $item['expect'],
-				'to'   => $set,
+				'from' => StateUnits::for_log( $kind, $item['expect'] ),
+				'to'   => StateUnits::for_log( $kind, $set ),
 			);
-		}
+		}//end foreach
 		ApprovalLog::add( (string) $input['changeset'], (string) $input['action'], (string) ( $input['summary'] ?? '' ), $rows, 'ok' );
 		return array(
-			'ok'  => true,
-			'ids' => $ids,
+			'ok'      => true,
+			'ids'     => $ids,
+			'written' => $written,
 		);
 	}
 
@@ -178,6 +191,9 @@ final class ApplyChangesAbility {
 		}
 		if ( 'seo' === $kind && ( ! SeoAdapters::current()->supports_seo() || ( isset( $item['adapter'] ) && $item['adapter'] !== $adapter ) ) ) {
 			return 'The SEO plugin changed since the draft (now: ' . $adapter . ').';
+		}
+		if ( 'menu' === $kind && isset( $item['adapter'] ) && \Addsynapse\StoreAssistant\Adapters\Menu\MenuAdapters::current()->kind() !== $item['adapter'] ) {
+			return 'The theme\'s menu type changed since the draft.';
 		}
 		$now = StateUnits::read(
 			array(

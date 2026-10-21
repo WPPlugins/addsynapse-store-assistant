@@ -394,11 +394,11 @@ final class HomePage {
 		self::choice(
 			'mcp',
 			'cloud',
-			__( 'Use it from Claude', 'addsynapse-store-assistant' ),
-			self::is_site() ? __( 'Talk to your site from claude.ai.', 'addsynapse-store-assistant' ) : __( 'Talk to your store from claude.ai.', 'addsynapse-store-assistant' ),
+			__( 'Use it from Claude or ChatGPT', 'addsynapse-store-assistant' ),
+			self::is_site() ? __( 'Talk to your site from claude.ai or ChatGPT (beta).', 'addsynapse-store-assistant' ) : __( 'Talk to your store from claude.ai or ChatGPT (beta).', 'addsynapse-store-assistant' ),
 			array(
 				__( 'No API key needed', 'addsynapse-store-assistant' ),
-				__( 'Uses your Claude subscription', 'addsynapse-store-assistant' ),
+				__( 'Uses your Claude or ChatGPT subscription', 'addsynapse-store-assistant' ),
 				__( 'Changes arrive as drafts: Approve, then Undo if needed', 'addsynapse-store-assistant' ),
 			),
 			true
@@ -478,13 +478,14 @@ final class HomePage {
 		$ready = ! empty( $status['ready'] );
 		$steps = array(
 			'check'   => array( __( 'Check', 'addsynapse-store-assistant' ), $ready || (bool) $status['checked'] ),
-			'add'     => array( __( 'Add to your AI', 'addsynapse-store-assistant' ), (bool) $status['connected'] ),
+			// Done only when the site is connected for sure, or the manager says so («I've added it») — never on a click of «Add to Claude» or «Copy».
+			'add'     => array( __( 'Add to your AI', 'addsynapse-store-assistant' ), $ready ),
 			'connect' => array( __( 'Connect', 'addsynapse-store-assistant' ), (bool) $status['connected'] ),
 			'confirm' => array( __( 'Confirm', 'addsynapse-store-assistant' ), $ready || (bool) $status['used'] ),
 		);
 		self::back_link();
 		echo '<div class="adsa-pathhead">';
-		echo '<h2 class="adsa-pathhead__title">' . esc_html( self::is_site() ? __( 'Use your site from Claude', 'addsynapse-store-assistant' ) : __( 'Use your store from Claude', 'addsynapse-store-assistant' ) ) . '</h2>';
+		echo '<h2 class="adsa-pathhead__title">' . esc_html( self::is_site() ? __( 'Use your site from Claude or ChatGPT', 'addsynapse-store-assistant' ) : __( 'Use your store from Claude or ChatGPT', 'addsynapse-store-assistant' ) ) . '</h2>';
 		echo '<p class="adsa-pathhead__lead">' . esc_html__( 'Four short steps, about five minutes. Each step turns green on its own.', 'addsynapse-store-assistant' ) . '</p>';
 		echo '</div>';
 		self::progress( $steps );
@@ -497,28 +498,18 @@ final class HomePage {
 		self::step_close();
 
 		self::step_open( 'add', 2, __( 'Add AddSynapse to your AI', 'addsynapse-store-assistant' ), $steps['add'][1] );
-		echo '<p>' . esc_html__( 'Once per AI account — the same address serves all your sites.', 'addsynapse-store-assistant' ) . '</p>';
-		echo '<p class="adsa-buttons">';
-		printf( '<a class="button button-primary adsa-ai" data-mark="add" href="%s" target="_blank" rel="noopener noreferrer">%s<span class="screen-reader-text"> %s</span></a> ', esc_url( \Addsynapse\StoreAssistant\Account\Api::claude_connect_url( home_url( '/' ) ) ), esc_html__( 'Add to Claude', 'addsynapse-store-assistant' ), esc_html__( '(opens in a new tab)', 'addsynapse-store-assistant' ) );
-		echo '<span class="description adsa-soon">' . esc_html__( 'ChatGPT: coming soon', 'addsynapse-store-assistant' ) . '</span>';
-		echo '</p>';
-		echo '<p class="adsa-label">' . esc_html__( 'MCP server address:', 'addsynapse-store-assistant' ) . '</p>';
-		self::copy_field( ConnectPage::mcp_url(), __( 'MCP server address:', 'addsynapse-store-assistant' ), __( 'Copy', 'addsynapse-store-assistant' ), 'add' );
-		echo '<details class="adsa-more"><summary>' . esc_html__( 'How to add it', 'addsynapse-store-assistant' ) . '</summary><ul class="adsa-howto">';
-		echo '<li>' . esc_html__( 'Claude: press «Add to Claude» — or open Settings → Connectors → Browse connectors and find «Store Manager for WooCommerce» — then press Connect.', 'addsynapse-store-assistant' ) . '</li>';
-		echo '<li>' . esc_html__( 'Or add it by address: in Claude open Settings → Connectors → Add custom connector, name it AddSynapse and paste the MCP server address above.', 'addsynapse-store-assistant' ) . '</li>';
-		echo '<li>' . esc_html__( 'ChatGPT: coming soon.', 'addsynapse-store-assistant' ) . '</li>';
-		echo '</ul></details>';
+		self::render_add_ways();
 		self::step_close();
 
 		self::step_open( 'connect', 3, __( 'Connect this site from the chat', 'addsynapse-store-assistant' ), $steps['connect'][1] );
 		if ( $ready ) {
 			// Already connected (owner 21/10: a second «Connect my site» made a second password) — no connect prompt here.
-			echo '<p class="adsa-state is-ok" data-connected="1"><span class="adsa-dot" aria-hidden="true"></span><span class="adsa-state__text">' . esc_html__( 'Connected ✓ — try asking Claude:', 'addsynapse-store-assistant' ) . '</span></p>';
+			echo '<p class="adsa-state is-ok" data-connected="1"><span class="adsa-dot" aria-hidden="true"></span><span class="adsa-state__text">' . esc_html__( 'Connected ✓ — try asking your AI:', 'addsynapse-store-assistant' ) . '</span></p>';
 			self::copy_field( $confirm, __( 'Prompt to send', 'addsynapse-store-assistant' ), __( 'Copy prompt', 'addsynapse-store-assistant' ) );
 		} else {
 			echo '<p>' . esc_html__( 'Send this to your AI. It answers with a link to this site\'s «Authorize Application» screen — approve it there.', 'addsynapse-store-assistant' ) . '</p>';
 			self::copy_field( self::connect_prompt(), __( 'Prompt to send', 'addsynapse-store-assistant' ), __( 'Copy prompt', 'addsynapse-store-assistant' ) );
+			self::authorize_note();
 			$waiting = $status['connected']
 				/* translators: %s: user login */
 				? sprintf( __( 'Approved by %s.', 'addsynapse-store-assistant' ), (string) $status['detail']['user'] )
@@ -547,6 +538,61 @@ final class HomePage {
 		echo '<li>' . esc_html__( 'Disconnect at any time: Users → Profile → Application Passwords → revoke «AddSynapse».', 'addsynapse-store-assistant' ) . '</li>';
 		echo '<li>' . esc_html__( 'Deactivating or deleting this plugin also revokes every password WordPress issued to AddSynapse, for all users of this site.', 'addsynapse-store-assistant' ) . '</li>';
 		echo '</ul></details>';
+	}
+
+	/**
+	 * The line shown before the manager meets WordPress' own «Authorize Application» screen (owner 21/10: «why is this
+	 * needed?»).
+	 */
+	public static function authorize_note(): void {
+		echo '<p class="adsa-authnote">' . esc_html__( 'Next you\'ll see WordPress\' own approval screen — click «Yes, I approve». It gives AddSynapse a password that works only for these tools; you can revoke it any time.', 'addsynapse-store-assistant' ) . '</p>';
+	}
+
+	/**
+	 * Step 2: two clear ways to add AddSynapse — Claude's connector directory (one click), or a custom connector by address
+	 * (ChatGPT beta, Claude, other AI apps).
+	 */
+	private static function render_add_ways(): void {
+		echo '<p>' . esc_html__( 'Once per AI account — the same address serves all your sites. Choose one way:', 'addsynapse-store-assistant' ) . '</p>';
+		echo '<div class="adsa-addways">';
+
+		echo '<section class="adsa-addway is-recommended" aria-labelledby="adsa-addway-claude">';
+		echo '<h3 class="adsa-addway__title" id="adsa-addway-claude">' . esc_html__( 'Claude — one click from the connector directory', 'addsynapse-store-assistant' ) . '</h3>';
+		echo '<p>' . esc_html__( 'Opens AddSynapse in Claude\'s connector directory. Press Connect there and sign in to AddSynapse (or create a free account).', 'addsynapse-store-assistant' ) . '</p>';
+		printf( '<p class="adsa-buttons"><a class="button button-primary adsa-ai" href="%s" target="_blank" rel="noopener noreferrer">%s<span class="screen-reader-text"> %s</span></a></p>', esc_url( \Addsynapse\StoreAssistant\Account\Api::claude_connect_url( home_url( '/' ) ) ), esc_html__( 'Add to Claude', 'addsynapse-store-assistant' ), esc_html__( '(opens in a new tab)', 'addsynapse-store-assistant' ) );
+		echo '</section>';
+
+		echo '<section class="adsa-addway" aria-labelledby="adsa-addway-manual">';
+		echo '<h3 class="adsa-addway__title" id="adsa-addway-manual">' . esc_html__( 'Manually — ChatGPT (Beta) and other AI apps', 'addsynapse-store-assistant' ) . '</h3>';
+		echo '<p>' . esc_html__( 'Add AddSynapse as a custom connector with this MCP server address:', 'addsynapse-store-assistant' ) . '</p>';
+		self::copy_field( ConnectPage::mcp_url(), __( 'MCP server address:', 'addsynapse-store-assistant' ), __( 'Copy', 'addsynapse-store-assistant' ) );
+
+		echo '<details class="adsa-more"><summary>' . esc_html__( 'Claude (custom connector)', 'addsynapse-store-assistant' ) . '</summary><ol class="adsa-gpt__steps">';
+		echo '<li>' . esc_html__( 'In Claude open Settings → Connectors → Add custom connector.', 'addsynapse-store-assistant' ) . '</li>';
+		echo '<li>' . esc_html__( 'Name it AddSynapse, paste the address above and press Add.', 'addsynapse-store-assistant' ) . '</li>';
+		echo '<li>' . esc_html__( 'Press Connect and sign in to AddSynapse (or create a free account).', 'addsynapse-store-assistant' ) . '</li>';
+		echo '</ol></details>';
+
+		echo '<details class="adsa-more"><summary>' . esc_html__( 'ChatGPT', 'addsynapse-store-assistant' ) . ' <span class="adsa-badge">' . esc_html__( 'Beta', 'addsynapse-store-assistant' ) . '</span></summary>';
+		echo '<p class="description">' . esc_html__( 'This needs a ChatGPT plan that offers developer mode, and menu names may differ slightly. If the chat shows no Approve button, open the link it gives you to approve the change on your AddSynapse Changes page.', 'addsynapse-store-assistant' ) . '</p>';
+		echo '<ol class="adsa-gpt__steps">';
+		echo '<li>' . esc_html__( 'In ChatGPT open Settings → Apps & Connectors → Advanced settings and turn on Developer mode.', 'addsynapse-store-assistant' ) . '</li>';
+		echo '<li>' . esc_html__( 'Back in Apps & Connectors press Create.', 'addsynapse-store-assistant' ) . '</li>';
+		echo '<li>' . esc_html__( 'Name: AddSynapse. MCP server URL: paste the address above.', 'addsynapse-store-assistant' ) . '</li>';
+		echo '<li>' . esc_html__( 'Authentication: OAuth. Tick «I trust this application» and press Create.', 'addsynapse-store-assistant' ) . '</li>';
+		echo '<li>' . esc_html__( 'Sign in to AddSynapse (or create a free account) and approve the access.', 'addsynapse-store-assistant' ) . '</li>';
+		echo '<li>' . esc_html__( 'In a new chat press + → Developer mode, turn on AddSynapse, then continue with step 3 below.', 'addsynapse-store-assistant' ) . '</li>';
+		echo '</ol>';
+		printf( '<p><a class="button" href="%s" target="_blank" rel="noopener noreferrer">%s<span class="screen-reader-text"> %s</span></a></p>', esc_url( ConnectPage::CHATGPT_URL ), esc_html__( 'Open ChatGPT', 'addsynapse-store-assistant' ), esc_html__( '(opens in a new tab)', 'addsynapse-store-assistant' ) );
+		echo '</details>';
+
+		echo '<details class="adsa-more"><summary>' . esc_html__( 'Cursor and other AI apps', 'addsynapse-store-assistant' ) . '</summary>';
+		echo '<p>' . esc_html__( 'Add a remote MCP server (Streamable HTTP) with the address above. When the app asks you to sign in, sign in to AddSynapse.', 'addsynapse-store-assistant' ) . '</p>';
+		echo '</details>';
+		echo '</section>';
+		echo '</div>';
+
+		echo '<p class="adsa-added"><button type="button" class="button adsa-mark" data-mark="add">' . esc_html__( 'I\'ve added it', 'addsynapse-store-assistant' ) . '</button> <span class="description">' . esc_html__( 'This step also turns green on its own once the site is connected.', 'addsynapse-store-assistant' ) . '</span></p>';
 	}
 
 	/**
@@ -674,11 +720,17 @@ final class HomePage {
 		}
 		echo '</header>';
 
-		if ( in_array( $welcome, array( 'mcp', 'key' ), true ) ) {
+		if ( 'connected' === $welcome ) {
+			// RelayClaim: the approval came back twice (refresh/back) and AddSynapse had already taken the first one.
+			echo '<div class="adsa-welcome" role="status">';
+			self::print_icon( 'check' );
+			echo '<div><strong>' . esc_html__( 'Already connected ✓', 'addsynapse-store-assistant' ) . '</strong> ';
+			echo esc_html__( 'This site is connected to AddSynapse. Go back to Claude or ChatGPT and continue there.', 'addsynapse-store-assistant' ) . '</div></div>';
+		} elseif ( in_array( $welcome, array( 'mcp', 'key' ), true ) ) {
 			echo '<div class="adsa-welcome" role="status">';
 			self::print_icon( 'check' );
 			echo '<div><strong>' . esc_html__( 'You are all set.', 'addsynapse-store-assistant' ) . '</strong> ';
-			echo esc_html( 'mcp' === $welcome ? __( 'Ask Claude about your store. Changes come back as drafts you approve.', 'addsynapse-store-assistant' ) : __( 'Ask the assistant in the Chat. Changes come back as drafts you approve.', 'addsynapse-store-assistant' ) ) . '</div></div>';
+			echo esc_html( 'mcp' === $welcome ? __( 'Ask Claude or ChatGPT about your store. Changes come back as drafts you approve.', 'addsynapse-store-assistant' ) : __( 'Ask the assistant in the Chat. Changes come back as drafts you approve.', 'addsynapse-store-assistant' ) ) . '</div></div>';
 		}
 
 		Announcements::render( 'home' );
@@ -688,7 +740,7 @@ final class HomePage {
 		// Way A.
 		echo '<section class="adsa-way" aria-labelledby="adsa-way-mcp"><div class="adsa-way__top"><span class="adsa-choice__icon">';
 		self::print_icon( 'cloud' );
-		echo '</span><h3 id="adsa-way-mcp">' . esc_html__( 'Claude', 'addsynapse-store-assistant' ) . '</h3>';
+		echo '</span><h3 id="adsa-way-mcp">' . esc_html__( 'Claude or ChatGPT', 'addsynapse-store-assistant' ) . '</h3>';
 		self::pill( (bool) $status['connected'], $status['connected'] ? __( 'Connected', 'addsynapse-store-assistant' ) : __( 'Not set up', 'addsynapse-store-assistant' ) );
 		echo '</div>';
 		if ( $status['connected'] ) {
@@ -702,9 +754,10 @@ final class HomePage {
 			) . '</p>';
 			echo '<p class="adsa-label">' . esc_html__( 'To use another site or AI account, send:', 'addsynapse-store-assistant' ) . '</p>';
 			self::copy_field( self::connect_prompt(), __( 'Prompt to send', 'addsynapse-store-assistant' ), __( 'Copy prompt', 'addsynapse-store-assistant' ) );
+			self::authorize_note();
 			echo '<p class="adsa-buttons"><a class="button" href="' . esc_url( self::setup_url( 'mcp' ) ) . '">' . esc_html__( 'Setup steps', 'addsynapse-store-assistant' ) . '</a> <a class="button-link" href="' . esc_url( SettingsPage::url( array( 'view' => 'log' ) ) ) . '">' . esc_html__( 'Approval log', 'addsynapse-store-assistant' ) . '</a></p>';
 		} else {
-			echo '<p>' . esc_html( self::is_site() ? __( 'Talk to your site from claude.ai. No API key needed.', 'addsynapse-store-assistant' ) : __( 'Talk to your store from claude.ai. No API key needed.', 'addsynapse-store-assistant' ) ) . '</p>';
+			echo '<p>' . esc_html( self::is_site() ? __( 'Talk to your site from claude.ai or ChatGPT (beta). No API key needed.', 'addsynapse-store-assistant' ) : __( 'Talk to your store from claude.ai or ChatGPT (beta). No API key needed.', 'addsynapse-store-assistant' ) ) . '</p>';
 			echo '<p class="adsa-buttons"><a class="button button-primary" href="' . esc_url( self::setup_url( 'mcp' ) ) . '">' . esc_html( $active ? __( 'Use this way too', 'addsynapse-store-assistant' ) : __( 'Set up', 'addsynapse-store-assistant' ) ) . '</a></p>';
 		}
 		echo '</section>';

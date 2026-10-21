@@ -253,14 +253,14 @@ final class SettingsPage {
 	 */
 	private static function render_mcp(): void {
 		$status = SetupStatus::connection();
-		echo '<h2 id="addsynapse-assistant-mcp">' . esc_html__( 'Claude', 'addsynapse-store-assistant' ) . '</h2>';
+		echo '<h2 id="addsynapse-assistant-mcp">' . esc_html__( 'Claude or ChatGPT', 'addsynapse-store-assistant' ) . '</h2>';
 		if ( $status['connected'] ) {
 			/* translators: %s: user login */
 			echo '<p>' . esc_html( sprintf( __( 'Connected. Approved by %s.', 'addsynapse-store-assistant' ), (string) $status['detail']['user'] ) ) . '</p>';
 			echo '<p><a class="button" href="' . esc_url( HomePage::setup_url( 'mcp' ) ) . '">' . esc_html__( 'Setup steps', 'addsynapse-store-assistant' ) . '</a> ';
 		} else {
-			echo '<p>' . esc_html( 'site' === Environment::site_type() ? __( 'Not connected yet. Use your site from claude.ai, without an API key.', 'addsynapse-store-assistant' ) : __( 'Not connected yet. Use your store from claude.ai, without an API key.', 'addsynapse-store-assistant' ) ) . '</p>';
-			echo '<p class="adsa-settings__actions"><a class="button button-primary" href="' . esc_url( HomePage::setup_url( 'mcp' ) ) . '">' . esc_html__( 'Connect to Claude', 'addsynapse-store-assistant' ) . '</a> ';
+			echo '<p>' . esc_html( 'site' === Environment::site_type() ? __( 'Not connected yet. Use your site from claude.ai or ChatGPT (beta), without an API key.', 'addsynapse-store-assistant' ) : __( 'Not connected yet. Use your store from claude.ai or ChatGPT (beta), without an API key.', 'addsynapse-store-assistant' ) ) . '</p>';
+			echo '<p class="adsa-settings__actions"><a class="button button-primary" href="' . esc_url( HomePage::setup_url( 'mcp' ) ) . '">' . esc_html__( 'Connect to Claude or ChatGPT', 'addsynapse-store-assistant' ) . '</a> ';
 		}
 		/* translators: %d: number of entries */
 		echo '<a class="button-link" href="' . esc_url( self::url( array( 'view' => 'log' ) ) ) . '">' . esc_html( sprintf( _n( 'Approval log (%d entry)', 'Approval log (%d entries)', (int) $status['log_count'], 'addsynapse-store-assistant' ), (int) $status['log_count'] ) ) . '</a></p>';

@@ -8,7 +8,8 @@
 		return;
 	}
 	var apiFetch = window.wp && window.wp.apiFetch;
-	var STORE = 'addsynapseAssistantWizard';
+	/* v2 (1.3.1): older versions marked step 2 on a click of «Add to Claude» or «Copy» — forget that. */
+	var STORE = 'addsynapseAssistantWizard2';
 
 	function remember( key ) {
 		try {
@@ -84,7 +85,7 @@
 		p.classList.toggle( 'is-waiting', ! ok );
 	}
 
-	/* «Mark» actions: Add buttons / copy of the address (step 2), «It worked» (step 4). */
+	/* «Mark» actions: «I've added it» (step 2), «It worked» (step 4) — explicit buttons only. */
 	root.querySelectorAll( '[data-mark]' ).forEach( function ( n ) {
 		n.addEventListener( 'click', function () {
 			var name = n.getAttribute( 'data-mark' );
@@ -165,8 +166,11 @@
 				if ( s.checked ) {
 					setDone( 'check', true );
 				}
-				if ( s.connected ) {
+				if ( s.ready ) {
+					/* Step 2 turns green on its own only once AddSynapse confirmed (or used) the connection. */
 					setDone( 'add', true );
+				}
+				if ( s.connected ) {
 					setDone( 'connect', true );
 					state( 'connect', ( t.approved || '%s' ).replace( '%s', s.detail.user ), true );
 				}

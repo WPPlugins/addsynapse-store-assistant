@@ -89,6 +89,8 @@ function addsynapse_assistant_uninstall_site() {
 		'addsynapse_assistant_onboarding',
 		// 1.3.0: the AddSynapse connection AddSynapse confirmed (uuid of the password, user, time — never the password).
 		'addsynapse_assistant_relay_claimed',
+		// 1.3.1: a claimed password AddSynapse has not used yet (uuid, user, time — never the password).
+		'addsynapse_assistant_relay_pending',
 	);
 	foreach ( $options as $option ) {
 		delete_option( $option );
@@ -132,7 +134,7 @@ function addsynapse_assistant_uninstall_site() {
 	}
 
 	// Scheduled work: WP-Cron events and Action Scheduler actions (also without WooCommerce loaded).
-	$hooks = array( 'addsynapse_assistant_imports_cleanup', 'addsynapse_assistant_images_cleanup', 'addsynapse_assistant_changeset_process', 'addsynapse_assistant_usage_ping' );
+	$hooks = array( 'addsynapse_assistant_imports_cleanup', 'addsynapse_assistant_images_cleanup', 'addsynapse_assistant_changeset_process', 'addsynapse_assistant_usage_ping', 'addsynapse_assistant_relay_pending_check' );
 	foreach ( $hooks as $hook ) {
 		wp_clear_scheduled_hook( $hook );
 		if ( function_exists( 'as_unschedule_all_actions' ) ) {

@@ -64,4 +64,41 @@ interface MenuAdapterInterface {
 	 * @return array<string,mixed>
 	 */
 	public function read( int $menu_id ): array;
+
+	/**
+	 * Snapshot of a menu that does not exist yet.
+	 *
+	 * @param string $name Name.
+	 * @return array<string,mixed>
+	 */
+	public function blank( string $name ): array;
+
+	/**
+	 * Whether two snapshots describe the same stored state (conflict detection).
+	 *
+	 * @param array<string,mixed> $a             Snapshot.
+	 * @param array<string,mixed> $b             Snapshot.
+	 * @param array<int,string>   $location_keys Theme locations to compare (the ones the change touches).
+	 */
+	public function same( array $a, array $b, array $location_keys = array() ): bool;
+
+	/**
+	 * Makes the store match $target (the current state is $current). Returns the fresh
+	 * snapshot as stored. Throws \RuntimeException on failure.
+	 *
+	 * @param array<string,mixed> $current Current snapshot.
+	 * @param array<string,mixed> $target  Target snapshot.
+	 * @return array<string,mixed>
+	 */
+	public function write( array $current, array $target ): array;
+
+	/**
+	 * Default fields of a NEW item pointing at an object (type/object/object_id/url/extra).
+	 *
+	 * @param string $object_type product_cat|product|page|post|custom.
+	 * @param int    $object_id   Object id (0 for custom).
+	 * @param string $url         Custom URL.
+	 * @return array<string,mixed>
+	 */
+	public function new_item( string $object_type, int $object_id, string $url ): array;
 }

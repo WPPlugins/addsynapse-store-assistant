@@ -110,6 +110,24 @@ final class ApprovalLog {
 		if ( 'seo' === $kind ) {
 			return 'title' === $field ? __( 'SEO title', 'addsynapse-store-assistant' ) : __( 'SEO description', 'addsynapse-store-assistant' );
 		}
+		// 1.3.1 site tools: featured image, menu, page/post content.
+		if ( 'featured' === $kind ) {
+			return __( 'Featured image', 'addsynapse-store-assistant' );
+		}
+		if ( 'menu' === $kind ) {
+			return __( 'Menu items', 'addsynapse-store-assistant' );
+		}
+		if ( 'content' === $kind ) {
+			$content = array(
+				'title'   => _x( 'Title', 'approval log: page or post field', 'addsynapse-store-assistant' ),
+				'excerpt' => _x( 'Excerpt', 'approval log: page or post field', 'addsynapse-store-assistant' ),
+				'content' => _x( 'Text', 'approval log: page or post field', 'addsynapse-store-assistant' ),
+				'status'  => _x( 'Status', 'approval log: page or post field', 'addsynapse-store-assistant' ),
+			);
+			if ( isset( $content[ $field ] ) ) {
+				return $content[ $field ];
+			}
+		}
 		$labels = array(
 			'regular_price'               => __( 'Regular price', 'addsynapse-store-assistant' ),
 			'sale_price'                  => __( 'Sale price', 'addsynapse-store-assistant' ),
@@ -160,6 +178,10 @@ final class ApprovalLog {
 			'fixed_cart'    => __( 'Fixed cart discount', 'addsynapse-store-assistant' ),
 			'fixed_product' => __( 'Fixed product discount', 'addsynapse-store-assistant' ),
 		);
+		if ( 'image_id' === $field && ctype_digit( $value ) ) {
+			/* translators: %s: media library image id. */
+			return sprintf( __( 'image #%s', 'addsynapse-store-assistant' ), $value );
+		}
 		if ( in_array( $field, array( 'stock_status', 'discount_type' ), true ) && isset( $labels[ $value ] ) ) {
 			return $labels[ $value ];
 		}

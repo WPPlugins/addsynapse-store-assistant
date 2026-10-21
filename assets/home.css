@@ -284,3 +284,17 @@
 	.adsa-copy { flex-direction: column; }
 	.adsa-copy__btn { align-self: flex-start; }
 }
+.adsa-gpt { margin-top: 14px; padding: 12px 14px; border: 1px solid #dcdcde; border-radius: 8px; background: #fbfbfc; }
+.adsa-gpt__head { margin: 0 0 4px; }
+.adsa-gpt__steps { margin: 8px 0 0 20px; list-style: decimal; }
+.adsa-gpt__steps li { margin-bottom: 6px; }
+.adsa-gpt__steps .adsa-copy { margin-top: 6px; }
+.adsa-badge { display: inline-block; padding: 1px 8px; border-radius: 999px; background: #fcf0e3; color: #8a4b00; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .03em; vertical-align: middle; }
+.adsa-addways { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; margin: 10px 0 4px; }
+.adsa-addway { padding: 12px 14px; border: 1px solid #dcdcde; border-radius: 8px; background: #fbfbfc; }
+.adsa-addway.is-recommended { border-color: var(--adsa-accent); background: #fff; }
+.adsa-addway__title { margin: 0 0 6px; font-size: 14px; }
+.adsa-addway .adsa-more { margin-top: 8px; }
+.adsa-addway .adsa-more > summary .adsa-badge { margin-left: 4px; }
+.adsa-added { margin: 12px 0 0; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.adsa-authnote { margin: 10px 0 0; padding: 8px 12px; border-left: 3px solid var(--adsa-accent); background: #f6f7f7; }

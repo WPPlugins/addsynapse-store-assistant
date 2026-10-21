@@ -22,10 +22,9 @@ final class RemoteTicket {
 
 	/**
 	 * Pinned AddSynapse public keys (base64, Ed25519), by key id. Old ids stay until their tickets cannot exist anymore.
-	 * PoC key of 21/10/2026 — the production key replaces it before release.
+	 * 1.3.1 (security review 22/10/2026): the PoC key `poc-20261021` is no longer trusted — only the production key.
 	 */
 	public const KEYS = array(
-		'poc-20261021' => 'mQBynWpbO2F5bXxBbvjwlYDddQTx/fW/oAIaGYy/Iys=',
 		// addsynapse.com hub (SA_RELAY_TICKET_KID=hub-20261021); the private key lives only on the hub, outside the web root.
 		'hub-20261021' => 'xiceji7Y4kHvUnMLqM4U6ZZEkxAGq8p1aiP5LgYNPjE=',
 	);

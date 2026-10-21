@@ -12,9 +12,11 @@ use Addsynapse\StoreAssistant\Menus\MenuTree;
 defined( 'ABSPATH' ) || exit;
 
 /**
- * Reads navigation blocks (block themes). Item ids are depth-first POSITIONS (1..n) of the current tree: blocks have
- * no ids. Blocks other than links/submenus (page list, search, social icons…) are listed as opaque items. Read-only in
- * this plugin: it never writes menus.
+ * Item ids are depth-first POSITIONS (1..n) of the current tree: blocks have no ids. The
+ * changeset engine only writes when the stored content is exactly the one the plan was made
+ * from (same() compares the raw post_content), so positions stay valid. Blocks other than
+ * links/submenus (page list, search, social icons…) are kept as opaque, read-only items.
+ * Undo writes back the exact previous post_content (or deletes a navigation it created).
  */
 class BlockNavigationAdapter implements MenuAdapterInterface {
 
@@ -56,11 +58,12 @@ class BlockNavigationAdapter implements MenuAdapterInterface {
 	private function posts(): array {
 		return get_posts(
 			array(
-				'post_type'   => self::POST_TYPE,
-				'post_status' => 'publish',
-				'numberposts' => 100,
-				'orderby'     => 'ID',
-				'order'       => 'ASC',
+				'post_type'        => self::POST_TYPE,
+				'post_status'      => 'publish',
+				'numberposts'      => 100,
+				'orderby'          => 'ID',
+				'order'            => 'ASC',
+				'suppress_filters' => false,
 			)
 		);
 	}
@@ -105,6 +108,26 @@ class BlockNavigationAdapter implements MenuAdapterInterface {
 			}
 		}
 		return 1 === count( $found ) ? (int) array_key_first( $found ) : null;
+	}
+
+	/**
+	 * Snapshot of a menu that does not exist yet.
+	 *
+	 * @param string $name Name.
+	 * @return array<string,mixed>
+	 */
+	public function blank( string $name ): array {
+		return array(
+			'adapter'   => self::KIND,
+			'exists'    => false,
+			'menu'      => array(
+				'id'   => 0,
+				'name' => $name,
+				'slug' => '',
+			),
+			'items'     => array(),
+			'locations' => array(),
+		);
 	}
 
 	/**
@@ -199,6 +222,120 @@ class BlockNavigationAdapter implements MenuAdapterInterface {
 			}
 		}//end foreach
 		return $out;
+	}
+
+	/**
+	 * Same stored state?
+	 *
+	 * @param array<string,mixed> $a             Snapshot.
+	 * @param array<string,mixed> $b             Snapshot.
+	 * @param array<int,string>   $location_keys Locations to compare.
+	 */
+	public function same( array $a, array $b, array $location_keys = array() ): bool {
+		if ( ! empty( $a['exists'] ) !== ! empty( $b['exists'] ) ) {
+			return false;
+		}
+		if ( empty( $a['exists'] ) ) {
+			return true;
+		}
+		if ( (string) $a['menu']['name'] !== (string) $b['menu']['name'] ) {
+			return false;
+		}
+		if ( isset( $a['raw'], $b['raw'] ) ) {
+			return (string) $a['raw'] === (string) $b['raw'];
+		}
+		return MenuTree::stored( (array) $a['items'] ) === MenuTree::stored( (array) $b['items'] );
+	}
+
+	/**
+	 * Fields of a new item.
+	 *
+	 * @param string $object_type product_cat|product|page|post|custom.
+	 * @param int    $object_id   Object id.
+	 * @param string $url         Custom URL.
+	 * @return array<string,mixed>
+	 */
+	public function new_item( string $object_type, int $object_id, string $url ): array {
+		$link = $url;
+		$kind = 'custom';
+		$type = 'custom';
+		if ( 'product_cat' === $object_type ) {
+			$kind = 'taxonomy';
+			$type = 'taxonomy';
+			$term = get_term_link( $object_id, 'product_cat' );
+			$link = is_wp_error( $term ) ? '' : (string) $term;
+		} elseif ( in_array( $object_type, array( 'product', 'page', 'post' ), true ) ) {
+			$kind = 'post-type';
+			$type = 'post_type';
+			$link = (string) get_permalink( $object_id );
+		}
+		return array(
+			'type'      => $type,
+			'object'    => 'custom' === $type ? 'custom' : $object_type,
+			'object_id' => 'custom' === $type ? 0 : $object_id,
+			'url'       => $link,
+			'extra'     => array(
+				'block' => array(
+					'blockName'    => self::LINK,
+					'attrs'        => array_filter(
+						array(
+							'kind' => $kind,
+							'type' => 'custom' === $type ? '' : $object_type,
+							'id'   => 'custom' === $type ? 0 : $object_id,
+							'url'  => $link,
+						)
+					),
+					'innerBlocks'  => array(),
+					'innerHTML'    => '',
+					'innerContent' => array(),
+				),
+			),
+		);
+	}
+
+	/**
+	 * Makes the store match the target; returns the stored snapshot.
+	 *
+	 * @param array<string,mixed> $current Current snapshot.
+	 * @param array<string,mixed> $target  Target snapshot.
+	 * @return array<string,mixed>
+	 * @throws \RuntimeException When WordPress refuses a write.
+	 */
+	public function write( array $current, array $target ): array {
+		$menu_id = (int) ( $current['menu']['id'] ?? 0 );
+		if ( empty( $target['exists'] ) ) {
+			if ( ! empty( $current['exists'] ) && $menu_id > 0 && ! wp_delete_post( $menu_id, true ) ) {
+				// phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- stored as the item's error text, never printed raw.
+				throw new \RuntimeException( 'The navigation menu could not be deleted.' );
+			}
+			$blank               = $this->blank( (string) ( $target['menu']['name'] ?? '' ) );
+			$blank['menu']['id'] = $menu_id;
+			return $blank;
+		}
+		// Undo: the exact previous content. Plan: rebuilt from the target tree.
+		$content = isset( $target['raw'] ) ? (string) $target['raw'] : serialize_blocks( self::blocks( MenuTree::to_tree( (array) $target['items'] ) ) );
+		$post    = array(
+			'post_title'   => (string) $target['menu']['name'],
+			'post_content' => $content,
+		);
+		if ( empty( $current['exists'] ) ) {
+			$result = wp_insert_post(
+				wp_slash(
+					$post + array(
+						'post_type'   => self::POST_TYPE,
+						'post_status' => 'publish',
+					)
+				),
+				true
+			);
+		} else {
+			$result = wp_update_post( wp_slash( $post + array( 'ID' => $menu_id ) ), true );
+		}
+		if ( is_wp_error( $result ) || ! $result ) {
+			// phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- stored as the item's error text, never printed raw.
+			throw new \RuntimeException( is_wp_error( $result ) ? $result->get_error_message() : 'The navigation menu could not be saved.' );
+		}
+		return $this->read( (int) $result );
 	}
 
 	/**

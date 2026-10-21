@@ -9,7 +9,8 @@
  *    route, refused over XML-RPC) — passwords created by hand (other app_id or none) are not touched;
  *  - accepts the same credentials in an `X-AddSynapse-Auth` header on these routes, for hosts that strip the
  *    standard Authorization header;
- *  - serves a fixed allow-list of read tools (abilities) and the write tools (apply-price-changes, apply-changes)
+ *  - serves a fixed allow-list of read tools (abilities: store, pages/posts, menus, media, SEO) and the write tools
+ *    (apply-price-changes, apply-changes)
  *    that write exactly the values of a change set the owner approved, check that everything still holds the
  *    expected «before» values first, and record every write in the approval log;
  *  - runs those writes only with a single-use approval ticket signed by AddSynapse (RemoteTicket).
@@ -48,6 +49,11 @@ final class RemoteAccess {
 		'addsynapse-assistant/list-categories',
 		'addsynapse-assistant/product-report',
 		'addsynapse-assistant/get-seo',
+		'addsynapse-assistant/describe-menus',
+		'addsynapse-assistant/find-media',
+		ListContentAbility::NAME,
+		GetContentAbility::NAME,
+		PlanMenuAbility::NAME,
 		ReadStateAbility::NAME,
 		ApplyPricesAbility::NAME,
 		ApplyChangesAbility::NAME,
@@ -135,9 +141,26 @@ final class RemoteAccess {
 		}
 		$route = (string) $request->get_route();
 		if ( self::ROUTE_PREFIX === $route || 0 === strpos( $route, self::ROUTE_PREFIX . '/' ) ) {
+			self::maybe_confirm_pending( $route, $request );
 			return $result;
 		}
 		return new \WP_Error( 'addsynapse_assistant_scoped', 'This application password only works for the AddSynapse remote routes.', array( 'status' => 403 ) );
+	}
+
+	/**
+	 * A claimed password that waits for AddSynapse (RelayClaim, 22/10/2026): its first real use — anything but the claim's own
+	 * check (`ping?pending=1`) or a disconnect — means the member who started the connection completed it on AddSynapse.
+	 *
+	 * @param string           $route   Route.
+	 * @param \WP_REST_Request $request Request.
+	 */
+	private static function maybe_confirm_pending( string $route, $request ): void {
+		$uuid = is_array( self::$item ) && isset( self::$item['uuid'] ) ? (string) self::$item['uuid'] : '';
+		if ( '' === $uuid || ! RelayClaim::is_pending( $uuid ) || self::ROUTE_PREFIX . '/disconnect' === $route
+			|| ( self::ROUTE_PREFIX . '/ping' === $route && $request->get_param( 'pending' ) ) ) {
+			return;
+		}
+		RelayClaim::confirm_pending( get_current_user_id(), $uuid );
 	}
 
 	/**
@@ -157,13 +180,20 @@ final class RemoteAccess {
 	 * The two extra abilities (categories list, approved price write).
 	 */
 	public static function register_abilities(): void {
-		if ( ! function_exists( 'wp_register_ability' ) || ! Environment::has_woocommerce() ) {
+		if ( ! function_exists( 'wp_register_ability' ) ) {
+			return;
+		}
+		// Site tools (pages, posts, menus, media, page/post SEO): with or without WooCommerce.
+		( new ListContentAbility() )->register();
+		( new GetContentAbility() )->register();
+		( new PlanMenuAbility() )->register();
+		( new ReadStateAbility() )->register();
+		( new ApplyChangesAbility() )->register();
+		if ( ! Environment::has_woocommerce() ) {
 			return;
 		}
 		( new ListCategoriesAbility() )->register();
 		( new ApplyPricesAbility() )->register();
-		( new ReadStateAbility() )->register();
-		( new ApplyChangesAbility() )->register();
 	}
 
 	/**
@@ -223,7 +253,7 @@ final class RemoteAccess {
 			)
 		);
 		// Public discovery (AddSynapse onboarding): «is the Store Assistant with AI-app connections active here?» — only the
-		// plugin name, its version and `relay`. No store data, no settings, nothing about users.
+		// plugin name, `relay` and `min_version_ok` (the exact version only for a signed-in manager). No store data, no settings, nothing about users.
 		register_rest_route(
 			self::REST_NAMESPACE,
 			'/hello',
@@ -373,6 +403,8 @@ final class RemoteAccess {
 		}
 		delete_option( SetupStatus::CHECK_OPTION );
 		delete_option( RelayClaim::CLAIMED_OPTION );
+		delete_option( RelayClaim::PENDING_OPTION );
+		wp_clear_scheduled_hook( RelayClaim::PENDING_CRON );
 		$nonces = $wpdb->get_col( $wpdb->prepare( "SELECT option_name FROM {$wpdb->options} WHERE option_name LIKE %s", $wpdb->esc_like( RemoteTicket::NONCE_PREFIX ) . '%' ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 		foreach ( $nonces as $nonce ) {
 			delete_option( $nonce );
@@ -381,18 +413,21 @@ final class RemoteAccess {
 	}
 
 	/**
-	 * Public discovery for the AddSynapse onboarding: plugin, version, relay support — nothing else.
+	 * Public discovery for the AddSynapse onboarding: plugin, relay support, «new enough» — nothing else.
 	 *
 	 * @return \WP_REST_Response
 	 */
 	public static function hello() {
-		return rest_ensure_response(
-			array(
-				'plugin'  => 'store-assistant',
-				'version' => ADDSYNAPSE_ASSISTANT_VERSION,
-				'relay'   => true,
-			)
+		// Anonymous callers learn only «new enough for AddSynapse» (no exact version to fingerprint); managers see the version.
+		$data = array(
+			'plugin'         => 'store-assistant',
+			'relay'          => true,
+			'min_version_ok' => true,
 		);
+		if ( current_user_can( Config::capability() ) ) {
+			$data['version'] = ADDSYNAPSE_ASSISTANT_VERSION;
+		}
+		return rest_ensure_response( $data );
 	}
 
 	/**

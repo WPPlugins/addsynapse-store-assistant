@@ -30,7 +30,7 @@ final class ReadStateAbility {
 			self::NAME,
 			array(
 				'label'               => __( 'Current values for a change set', 'addsynapse-store-assistant' ),
-				'description'         => 'Returns the current price/stock fields of products or variations, the SEO title and meta description (active SEO plugin) of products, pages or posts, and coupons (by id or code). Read-only.',
+				'description'         => 'Returns the current price/stock fields of products or variations, the SEO title and meta description (active SEO plugin) of products, pages or posts, coupons (by id or code), the title/excerpt/content/status and featured image of pages and posts, and navigation menus. Read-only.',
 				'category'            => AbilitiesRegistrar::CATEGORY,
 				'input_schema'        => array(
 					'type'                 => 'object',
@@ -46,17 +46,21 @@ final class ReadStateAbility {
 								'additionalProperties' => false,
 								'required'             => array( 'kind' ),
 								'properties'           => array(
-									'kind' => array(
+									'kind'   => array(
 										'type' => 'string',
 										'enum' => StateUnits::KINDS,
 									),
-									'id'   => array(
+									'id'     => array(
 										'type'    => 'integer',
 										'minimum' => 0,
 									),
-									'code' => array(
+									'code'   => array(
 										'type'      => 'string',
 										'maxLength' => 100,
+									),
+									'expect' => array(
+										'type' => 'object',
+										'additionalProperties' => true,
 									),
 								),
 							),
@@ -87,7 +91,13 @@ final class ReadStateAbility {
 	public function execute( $input ) {
 		$out = array();
 		foreach ( (array) $input['items'] as $item ) {
-			$out[] = StateUnits::read( (array) $item );
+			$item = (array) $item;
+			$unit = StateUnits::read( $item );
+			// «Does it hold these values?» (AddSynapse's check after Approve/Undo of a menu, compared the way the site writes it).
+			if ( isset( $item['expect'] ) && is_array( $item['expect'] ) ) {
+				$unit['holds'] = ! empty( $unit['exists'] ) && StateUnits::holds( (string) $unit['kind'], (array) $unit['values'], $item['expect'] );
+			}
+			$out[] = $unit;
 		}
 		$adapter = SeoAdapters::current();
 		return array(

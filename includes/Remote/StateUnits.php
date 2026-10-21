@@ -4,7 +4,12 @@
  *  - product: price/stock fields of a product or variation (Changesets\ProductFields),
  *  - seo:     SEO title / meta description of a product, page or post through the active SEO plugin
  *             (Rank Math or Yoast — Changesets\SeoFields; nothing when neither is active),
- *  - coupon:  a WooCommerce coupon (fixed list of fields; create, update, delete only for Undo of a create).
+ *  - coupon:  a WooCommerce coupon (fixed list of fields; create, update, delete only for Undo of a create),
+ *  - content: title / excerpt / content / status of a page, post or other editable post type (also without WooCommerce),
+ *  - featured: the featured image of a page, post or other post type (attachment id or none),
+ *  - menu:    a whole navigation menu (classic menu or block Navigation) as a snapshot — written by its menu adapter only
+ *             when the menu still matches the expected snapshot (Undo restores the previous tree).
+ * product and coupon need WooCommerce; on a plain WordPress site they read as «not found».
  *
  * Reads return normalized values; writes take the same shape, so a change set is just expect(BEFORE)/set(AFTER).
  *
@@ -13,7 +18,10 @@
 
 namespace Addsynapse\StoreAssistant\Remote;
 
+use Addsynapse\StoreAssistant\Adapters\Menu\MenuAdapters;
 use Addsynapse\StoreAssistant\Adapters\Seo\SeoAdapters;
+use Addsynapse\StoreAssistant\Environment;
+use Addsynapse\StoreAssistant\Menus\MenuTree;
 use Addsynapse\StoreAssistant\Changesets\ProductFields;
 use Addsynapse\StoreAssistant\Changesets\SeoFields;
 
@@ -24,7 +32,16 @@ defined( 'ABSPATH' ) || exit;
  */
 final class StateUnits {
 
-	public const KINDS = array( 'product', 'seo', 'coupon' );
+	public const KINDS = array( 'product', 'seo', 'coupon', 'content', 'featured', 'menu' );
+
+	/** Content fields the remote route may change. */
+	public const CONTENT_FIELDS = array( 'title', 'excerpt', 'content', 'status' );
+
+	/** Post statuses a change set may set. */
+	public const CONTENT_STATUSES = array( 'draft', 'pending', 'publish', 'private' );
+
+	/** Largest post_content a change set may write (bytes). */
+	public const MAX_CONTENT = 500000;
 
 	/** Product fields the remote route may change (no sale dates). */
 	public const PRODUCT_FIELDS = array( 'regular_price', 'sale_price', 'manage_stock', 'stock_quantity', 'stock_status' );
@@ -61,6 +78,45 @@ final class StateUnits {
 	public static function read( array $item ): array {
 		$kind = (string) ( $item['kind'] ?? '' );
 		$id   = (int) ( $item['id'] ?? 0 );
+		if ( in_array( $kind, array( 'product', 'coupon' ), true ) && ! Environment::has_woocommerce() ) {
+			return self::missing( $kind, $id, 'WooCommerce is not active on this site.' );
+		}
+		if ( 'content' === $kind || 'featured' === $kind ) {
+			$post = self::editable_post( $id );
+			if ( null === $post ) {
+				return self::missing( $kind, $id, 'Page or post not found (or not editable).' );
+			}
+			$values = 'content' === $kind ? array(
+				'title'   => (string) $post->post_title,
+				'excerpt' => (string) $post->post_excerpt,
+				'content' => (string) $post->post_content,
+				'status'  => (string) $post->post_status,
+			) : array( 'image_id' => self::thumbnail( $post->ID ) );
+			return array(
+				'kind'   => $kind,
+				'id'     => $id,
+				'exists' => true,
+				'name'   => self::text( (string) $post->post_title ),
+				'type'   => (string) $post->post_type,
+				'values' => $values,
+			);
+		}
+		if ( 'menu' === $kind ) {
+			$adapter  = MenuAdapters::current();
+			$snapshot = $id > 0 ? $adapter->read( $id ) : array();
+			if ( empty( $snapshot['exists'] ) ) {
+				return self::missing( $kind, $id, 'Menu not found.' );
+			}
+			return array(
+				'kind'    => $kind,
+				'id'      => $id,
+				'exists'  => true,
+				'name'    => (string) $snapshot['menu']['name'],
+				'type'    => $adapter->kind(),
+				'adapter' => $adapter->kind(),
+				'values'  => array( 'menu' => $snapshot ),
+			);
+		}
 		if ( 'product' === $kind ) {
 			$product = $id ? wc_get_product( $id ) : null;
 			if ( ! $product || 'trash' === $product->get_status( 'edit' ) || $product->is_type( 'variable' ) || $product->is_type( 'grouped' ) ) {
@@ -130,6 +186,14 @@ final class StateUnits {
 	 * @param array<string,mixed> $expect Expected values.
 	 */
 	public static function holds( string $kind, array $now, array $expect ): bool {
+		if ( 'menu' === $kind ) {
+			$a = is_array( $now['menu'] ?? null ) ? $now['menu'] : array();
+			$b = is_array( $expect['menu'] ?? null ) ? $expect['menu'] : array();
+			return $a && $b && MenuAdapters::current()->same( $a, $b, MenuTree::location_keys( $a, $b ) );
+		}
+		if ( 'featured' === $kind ) {
+			return array_key_exists( 'image_id', $expect ) && (int) ( $now['image_id'] ?? 0 ) === (int) $expect['image_id'];
+		}
 		foreach ( $expect as $field => $value ) {
 			if ( ! array_key_exists( $field, $now ) ) {
 				return false;
@@ -162,7 +226,15 @@ final class StateUnits {
 	 * @param array<string,mixed> $set  Values.
 	 */
 	public static function invalid( string $kind, array $set ): string {
-		$allowed = 'product' === $kind ? self::PRODUCT_FIELDS : ( 'seo' === $kind ? self::SEO_PARTS : self::COUPON_FIELDS );
+		$fields  = array(
+			'product'  => self::PRODUCT_FIELDS,
+			'seo'      => self::SEO_PARTS,
+			'coupon'   => self::COUPON_FIELDS,
+			'content'  => self::CONTENT_FIELDS,
+			'featured' => array( 'image_id' ),
+			'menu'     => array( 'menu' ),
+		);
+		$allowed = $fields[ $kind ] ?? array();
 		foreach ( $set as $field => $value ) {
 			if ( ! in_array( $field, $allowed, true ) ) {
 				return 'Field not allowed: ' . $field;
@@ -188,6 +260,34 @@ final class StateUnits {
 				}
 			}
 		}
+		if ( 'content' === $kind ) {
+			foreach ( $set as $field => $value ) {
+				if ( ! is_string( $value ) ) {
+					return 'Invalid ' . $field;
+				}
+			}
+			if ( isset( $set['status'] ) && ! in_array( $set['status'], self::CONTENT_STATUSES, true ) ) {
+				return 'status must be draft, pending, publish or private';
+			}
+			if ( isset( $set['title'] ) && mb_strlen( $set['title'] ) > 500 ) {
+				return 'The title is too long.';
+			}
+			if ( isset( $set['content'] ) && strlen( $set['content'] ) > self::MAX_CONTENT ) {
+				return 'The content is too long.';
+			}
+			if ( isset( $set['status'] ) && 'publish' === $set['status'] && ! current_user_can( 'publish_posts' ) ) {
+				return 'This user cannot publish.';
+			}
+		}
+		if ( 'featured' === $kind ) {
+			$image = $set['image_id'] ?? null;
+			if ( null !== $image && ( ! is_int( $image ) || ! wp_attachment_is_image( $image ) ) ) {
+				return 'image_id must be an image of the media library (or null for none).';
+			}
+		}
+		if ( 'menu' === $kind && ( ! is_array( $set['menu'] ?? null ) || ! is_array( $set['menu']['items'] ?? null ) || empty( $set['menu']['exists'] ) ) ) {
+			return 'Invalid menu snapshot.';
+		}
 		if ( 'coupon' === $kind ) {
 			if ( isset( $set['discount_type'] ) && ! in_array( $set['discount_type'], self::COUPON_TYPES, true ) ) {
 				return 'Invalid discount_type';
@@ -212,6 +312,38 @@ final class StateUnits {
 	 * @throws \RuntimeException On a write that cannot be done.
 	 */
 	public static function write( string $kind, int $id, ?array $set ): int {
+		if ( 'content' === $kind ) {
+			$map  = array(
+				'title'   => 'post_title',
+				'excerpt' => 'post_excerpt',
+				'content' => 'post_content',
+				'status'  => 'post_status',
+			);
+			$post = array( 'ID' => $id );
+			foreach ( (array) $set as $field => $value ) {
+				$post[ $map[ $field ] ] = (string) $value;
+			}
+			$result = wp_update_post( wp_slash( $post ), true );
+			if ( is_wp_error( $result ) ) {
+				// phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- returned as data, never printed raw.
+				throw new \RuntimeException( $result->get_error_message() );
+			}
+			return $id;
+		}
+		if ( 'featured' === $kind ) {
+			$image = $set['image_id'] ?? null;
+			if ( null === $image ) {
+				delete_post_thumbnail( $id );
+			} else {
+				set_post_thumbnail( $id, (int) $image );
+			}
+			return $id;
+		}
+		if ( 'menu' === $kind ) {
+			$adapter = MenuAdapters::current();
+			$adapter->write( $adapter->read( $id ), (array) $set['menu'] );
+			return $id;
+		}
 		if ( 'product' === $kind ) {
 			$product = wc_get_product( $id );
 			$fields  = array_keys( (array) $set );
@@ -370,6 +502,55 @@ final class StateUnits {
 			return $product ? $product : null;
 		}
 		return null;
+	}
+
+	/**
+	 * A page, post or other post type the current user may edit (no attachments, menu items or block templates).
+	 *
+	 * @param int $id Id.
+	 */
+	public static function editable_post( int $id ): ?\WP_Post {
+		$post = $id ? get_post( $id ) : null;
+		if ( ! $post || 'trash' === $post->post_status || 'auto-draft' === $post->post_status ) {
+			return null;
+		}
+		$type = get_post_type_object( $post->post_type );
+		if ( ! $type || ! $type->show_ui || in_array( $post->post_type, array( 'attachment', 'nav_menu_item', 'wp_navigation', 'wp_template', 'wp_template_part', 'wp_block', 'wp_global_styles', 'shop_order', 'shop_coupon' ), true ) ) {
+			return null;
+		}
+		return current_user_can( 'edit_post', $post->ID ) ? $post : null;
+	}
+
+	/**
+	 * Featured image id (null = none).
+	 *
+	 * @param int $id Post id.
+	 */
+	private static function thumbnail( int $id ): ?int {
+		$image = (int) get_post_thumbnail_id( $id );
+		return $image > 0 ? $image : null;
+	}
+
+	/**
+	 * Short form of values for the approval log (long texts clipped, a menu as its item count).
+	 *
+	 * @param string $kind   Kind.
+	 * @param mixed  $values Values.
+	 * @return mixed
+	 */
+	public static function for_log( string $kind, $values ) {
+		if ( ! is_array( $values ) ) {
+			return $values;
+		}
+		if ( 'menu' === $kind ) {
+			return array( 'items' => isset( $values['menu']['items'] ) ? count( (array) $values['menu']['items'] ) : 0 );
+		}
+		foreach ( $values as $field => $value ) {
+			if ( is_string( $value ) && mb_strlen( $value ) > 120 ) {
+				$values[ $field ] = mb_substr( wp_strip_all_tags( $value ), 0, 117 ) . '…';
+			}
+		}
+		return $values;
 	}
 
 	/**
