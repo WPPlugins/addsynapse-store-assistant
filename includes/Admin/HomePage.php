@@ -13,6 +13,7 @@
 namespace Addsynapse\StoreAssistant\Admin;
 
 use Addsynapse\StoreAssistant\Account\Announcements;
+use Addsynapse\StoreAssistant\Account\Api;
 use Addsynapse\StoreAssistant\Account\OptIn;
 use Addsynapse\StoreAssistant\Account\Usage;
 use Addsynapse\StoreAssistant\Brain\Models;
@@ -20,6 +21,7 @@ use Addsynapse\StoreAssistant\Byok\KeyStore;
 use Addsynapse\StoreAssistant\Byok\Usage as KeyUsage;
 use Addsynapse\StoreAssistant\Config;
 use Addsynapse\StoreAssistant\Environment;
+use Addsynapse\StoreAssistant\Remote\PlanInfo;
 use Addsynapse\StoreAssistant\Remote\RemoteAccess;
 use Addsynapse\StoreAssistant\Remote\SetupStatus;
 
@@ -399,6 +401,8 @@ final class HomePage {
 			array(
 				__( 'No API key needed', 'addsynapse-store-assistant' ),
 				__( 'Uses your Claude or ChatGPT subscription', 'addsynapse-store-assistant' ),
+				/* translators: %s: number of actions per day, e.g. 100. */
+				sprintf( __( 'Free: %s actions a day', 'addsynapse-store-assistant' ), number_format_i18n( PlanInfo::FREE_PER_DAY ) ),
 				__( 'Changes arrive as drafts: Approve, then Undo if needed', 'addsynapse-store-assistant' ),
 			),
 			true
@@ -752,12 +756,18 @@ final class HomePage {
 					? sprintf( __( 'Last used %s ago.', 'addsynapse-store-assistant' ), human_time_diff( (int) $status['detail']['last_used'] ) )
 					: __( 'Not used yet.', 'addsynapse-store-assistant' )
 			) . '</p>';
-			echo '<p class="adsa-label">' . esc_html__( 'To use another site or AI account, send:', 'addsynapse-store-assistant' ) . '</p>';
+			// 1.3.2: the plan and today's count (as AddSynapse last reported it) — and no second approve pushed here.
+			echo '<p class="adsa-plan" data-adsa-plan>' . esc_html( PlanInfo::line() ) . ' <a href="' . esc_url( Api::BILLING_URL ) . '" target="_blank" rel="noopener noreferrer">' . esc_html__( 'Change plan', 'addsynapse-store-assistant' ) . '<span class="screen-reader-text"> ' . esc_html__( '(opens in a new tab)', 'addsynapse-store-assistant' ) . '</span></a></p>';
+			echo '<p>' . esc_html( self::is_site() ? __( 'Nothing else to do here: ask Claude or ChatGPT about your site.', 'addsynapse-store-assistant' ) : __( 'Nothing else to do here: ask Claude or ChatGPT about your store.', 'addsynapse-store-assistant' ) ) . '</p>';
+			echo '<p class="adsa-buttons"><a class="button-link" href="' . esc_url( SettingsPage::url( array( 'view' => 'log' ) ) ) . '">' . esc_html__( 'Approval log', 'addsynapse-store-assistant' ) . '</a></p>';
+			echo '<details class="adsa-more" data-adsa-another><summary>' . esc_html__( 'Connect another site or AI account', 'addsynapse-store-assistant' ) . '</summary>';
+			echo '<p class="adsa-label">' . esc_html__( 'Only for a different AI account or app. In that chat, send:', 'addsynapse-store-assistant' ) . '</p>';
 			self::copy_field( self::connect_prompt(), __( 'Prompt to send', 'addsynapse-store-assistant' ), __( 'Copy prompt', 'addsynapse-store-assistant' ) );
-			self::authorize_note();
-			echo '<p class="adsa-buttons"><a class="button" href="' . esc_url( self::setup_url( 'mcp' ) ) . '">' . esc_html__( 'Setup steps', 'addsynapse-store-assistant' ) . '</a> <a class="button-link" href="' . esc_url( SettingsPage::url( array( 'view' => 'log' ) ) ) . '">' . esc_html__( 'Approval log', 'addsynapse-store-assistant' ) . '</a></p>';
+			echo '<p><a href="' . esc_url( self::setup_url( 'mcp' ) ) . '">' . esc_html__( 'Setup steps', 'addsynapse-store-assistant' ) . '</a></p>';
+			echo '</details>';
 		} else {
 			echo '<p>' . esc_html( self::is_site() ? __( 'Talk to your site from claude.ai or ChatGPT (beta). No API key needed.', 'addsynapse-store-assistant' ) : __( 'Talk to your store from claude.ai or ChatGPT (beta). No API key needed.', 'addsynapse-store-assistant' ) ) . '</p>';
+			echo '<p class="adsa-plan">' . esc_html( PlanInfo::line() ) . '</p>';
 			echo '<p class="adsa-buttons"><a class="button button-primary" href="' . esc_url( self::setup_url( 'mcp' ) ) . '">' . esc_html( $active ? __( 'Use this way too', 'addsynapse-store-assistant' ) : __( 'Set up', 'addsynapse-store-assistant' ) ) . '</a></p>';
 		}
 		echo '</section>';

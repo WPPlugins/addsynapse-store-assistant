@@ -1,12 +1,12 @@
 === AddSynapse – AI Website & Store Assistant for WooCommerce ===
 Contributors: sakkoulas
-Tags: ai, woocommerce, claude, mcp, ai assistant
+Tags: chatgpt, claude, ai agent, woocommerce ai, product management
 Requires at least: 6.9
 Tested up to: 7.1
 Requires PHP: 7.4
 WC requires at least: 8.0
 WC tested up to: 11.1
-Stable tag: 1.3.1
+Stable tag: 1.3.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -226,6 +226,12 @@ Optional and off by default, separate from the account and from your AI key. The
 
 == Changelog ==
 
+= 1.3.2 =
+* Fix: two connect links approved in two browser tabs before either «Connect» now both finish — the second shows «Already connected ✓» instead of «not completed».
+* Fix: going Back to the confirmation screen after connecting shows «Already connected ✓», not an error.
+* Improved: Home no longer asks for a second approval when the site is already connected; connecting another AI account is a small optional section.
+* New: Home shows your AddSynapse plan and today's actions (Free: 100 actions a day), with a «Change plan» link.
+
 = 1.3.1 =
 * New: use your store or site from ChatGPT too (beta), as a custom MCP connector. The setup wizard shows the steps, with the address to copy. Claude stays the recommended way.
 * Improved: the «Add AddSynapse to your AI» step offers two clear ways — Claude in one click from its connector directory, or a custom connector by address (ChatGPT, Claude, other AI apps) — and turns «Done» only once the site is connected or you press «I've added it».
@@ -285,6 +291,9 @@ Optional and off by default, separate from the account and from your AI key. The
 * First release on WordPress.org: chat in wp-admin, read tools, previews with Approve and Undo for prices, stock, categories, attributes, variations, product details, menus, pages, SEO, orders and coupons, CSV import, 5-day free trial without sign-up, then a free read-only plan; Subscribe from the plugin. Bulk previews show how many questions they count (10 products = 1 question). Slash commands, previews, Approve, Undo, voice input and Show me work for everyone, without a connection or subscription.
 
 == Upgrade Notice ==
+
+= 1.3.2 =
+Fixes connecting from two tabs at once and Back after connecting. Home shows your plan and today's actions, and no longer asks for a second approval.
 
 = 1.3.1 =
 New: manage plain WordPress sites from Claude (pages, posts, menus, featured images, SEO). New (beta): ChatGPT as a custom connector. Security: a confirmation screen before connecting and hardened connection hand-over.

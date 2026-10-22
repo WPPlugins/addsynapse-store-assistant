@@ -61,7 +61,10 @@ final class RelayClaim {
 	/** Transient prefix (+ sha256 of the state) of an approval waiting for the administrator's confirmation. */
 	public const STASH_PREFIX = 'addsynapse_assistant_relay_stash_';
 
-	/** Cookie that holds the key of that stash (HttpOnly, wp-admin path, 10 minutes). */
+	/**
+	 * Cookie that holds the key of that stash (HttpOnly, wp-admin path, 10 minutes). 1.3.2: one cookie PER STATE
+	 * (name + `_` + a short hash of the state), so two connect links approved in two tabs before either Connect both work.
+	 */
 	public const STASH_COOKIE = 'addsynapse_assistant_relay_k';
 
 	/** The claim protocol this plugin speaks: 2 = the hub keeps the claim pending until /relay/done. */
@@ -146,7 +149,7 @@ final class RelayClaim {
 		}
 		$item = self::find_password( (int) $user->ID, $password );
 		if ( null === $item ) {
-			return $failed;
+			return self::already_connected( (int) $user->ID ) ? self::connected_url() : $failed;
 		}
 		$site_url = '' !== $site_url ? $site_url : site_url();
 		$preview  = Api::post(
@@ -160,12 +163,7 @@ final class RelayClaim {
 		if ( ! is_wp_error( $preview ) && 410 === $preview['status'] ) {
 			// AddSynapse no longer knows this connect (expired or already used): the new password is useless.
 			self::drop_unconfirmed( (int) $user->ID, (string) $item['uuid'] );
-			return self::already_connected( (int) $user->ID ) ? HomePage::url(
-				array(
-					'view'    => 'home',
-					'welcome' => 'connected',
-				)
-			) : $failed;
+			return self::already_connected( (int) $user->ID ) ? self::connected_url() : $failed;
 		}
 		$account = '';
 		$email   = '';
@@ -197,7 +195,7 @@ final class RelayClaim {
 		);
 		unset( $password );
 		// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_encode -- a random key in a cookie.
-		self::set_key_cookie( rtrim( strtr( base64_encode( $key ), '+/', '-_' ), '=' ), time() + self::MAX_AGE );
+		self::set_key_cookie( $state, rtrim( strtr( base64_encode( $key ), '+/', '-_' ), '=' ), time() + self::MAX_AGE );
 		return add_query_arg(
 			array(
 				'page'     => self::PAGE,
@@ -220,6 +218,11 @@ final class RelayClaim {
 		$stash = preg_match( '/^[A-Za-z0-9]{40}$/D', $state ) ? get_transient( self::stash_key( $state ) ) : false;
 		$user  = get_current_user_id();
 		if ( ! is_array( $stash ) || (int) ( $stash['user'] ?? 0 ) !== $user ) {
+			// Back after Connect (the confirm URL was used already) or a second tab after the first connected: not an error.
+			if ( self::already_connected( $user ) ) {
+				self::leave( self::connected_url() );
+				return;
+			}
 			self::leave( new \WP_Error( 'addsynapse_assistant_claim', __( 'The connection to AddSynapse was not completed. Nothing was sent. Start again from your AI chat.', 'addsynapse-store-assistant' ) ) );
 			return;
 		}
@@ -244,11 +247,12 @@ final class RelayClaim {
 		$failed = new \WP_Error( 'addsynapse_assistant_claim', __( 'The connection to AddSynapse was not completed. Nothing was sent. Start again from your AI chat.', 'addsynapse-store-assistant' ) );
 		$stash  = get_transient( self::stash_key( $state ) );
 		delete_transient( self::stash_key( $state ) );
-		$cookie = isset( $_COOKIE[ self::STASH_COOKIE ] ) ? sanitize_text_field( wp_unslash( $_COOKIE[ self::STASH_COOKIE ] ) ) : '';
-		self::set_key_cookie( '', time() - 3600 );
+		$name   = self::cookie_name( $state );
+		$cookie = isset( $_COOKIE[ $name ] ) ? sanitize_text_field( wp_unslash( $_COOKIE[ $name ] ) ) : '';
+		self::set_key_cookie( $state, '', time() - 3600 );
 		$user = get_current_user_id();
 		if ( ! is_array( $stash ) || (int) ( $stash['user'] ?? 0 ) !== $user ) {
-			return $failed;
+			return self::already_connected( $user ) ? self::connected_url() : $failed;
 		}
 		if ( $cancel ) {
 			self::drop_unconfirmed( $user, (string) $stash['uuid'] );
@@ -317,31 +321,55 @@ final class RelayClaim {
 	}
 
 	/**
+	 * The stash key cookie of one state (two tabs = two cookies).
+	 *
+	 * @param string $state One-time state.
+	 */
+	public static function cookie_name( string $state ): string {
+		return self::STASH_COOKIE . '_' . substr( hash( 'sha256', 'cookie|' . $state ), 0, 12 );
+	}
+
+	/**
+	 * Home with «Already connected ✓».
+	 */
+	private static function connected_url(): string {
+		return HomePage::url(
+			array(
+				'view'    => 'home',
+				'welcome' => 'connected',
+			)
+		);
+	}
+
+	/**
 	 * The stash key cookie (HttpOnly, secure when the admin is, wp-admin only).
 	 *
+	 * @param string $state   One-time state (names the cookie).
 	 * @param string $value   Cookie value ('' to clear).
 	 * @param int    $expires Expiry.
 	 */
-	private static function set_key_cookie( string $value, int $expires ): void {
+	private static function set_key_cookie( string $state, string $value, int $expires ): void {
+		$name = self::cookie_name( $state );
 		if ( ! headers_sent() ) {
-			self::send_cookie( $value, $expires );
+			self::send_cookie( $name, $value, $expires );
 		}
 		if ( '' === $value ) {
-			unset( $_COOKIE[ self::STASH_COOKIE ] );
+			unset( $_COOKIE[ $name ] );
 		} else {
-			$_COOKIE[ self::STASH_COOKIE ] = $value;
+			$_COOKIE[ $name ] = $value;
 		}
 	}
 
 	/**
 	 * Sends the stash key cookie.
 	 *
+	 * @param string $name    Cookie name.
 	 * @param string $value   Cookie value.
 	 * @param int    $expires Expiry.
 	 */
-	private static function send_cookie( string $value, int $expires ): void {
+	private static function send_cookie( string $name, string $value, int $expires ): void {
 		setcookie(
-			self::STASH_COOKIE,
+			$name,
 			$value,
 			array(
 				'expires'  => $expires,
@@ -451,7 +479,8 @@ final class RelayClaim {
 		}
 		$item = self::find_password( (int) $user->ID, $password );
 		if ( null === $item ) {
-			return $failed;
+			// A parallel connect (second tab) already finished and retired this password.
+			return self::already_connected( (int) $user->ID ) ? self::connected_url() : $failed;
 		}
 
 		$response = Api::post(
@@ -477,12 +506,7 @@ final class RelayClaim {
 				\WP_Application_Passwords::delete_application_password( (int) $user->ID, (string) $item['uuid'] );
 			}
 			if ( self::already_connected( (int) $user->ID ) ) {
-				return HomePage::url(
-					array(
-						'view'    => 'home',
-						'welcome' => 'connected',
-					)
-				);
+				return self::connected_url();
 			}
 		}
 		if ( 200 === $response['status'] && ! empty( $response['body']['ok'] ) ) {

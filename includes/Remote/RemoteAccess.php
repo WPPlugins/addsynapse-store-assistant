@@ -142,6 +142,9 @@ final class RemoteAccess {
 		$route = (string) $request->get_route();
 		if ( self::ROUTE_PREFIX === $route || 0 === strpos( $route, self::ROUTE_PREFIX . '/' ) ) {
 			self::maybe_confirm_pending( $route, $request );
+			if ( ! RelayClaim::is_pending( is_array( self::$item ) ? (string) ( self::$item['uuid'] ?? '' ) : '' ) ) {
+				PlanInfo::capture( $request->get_header( 'x_addsynapse_plan' ) );
+			}
 			return $result;
 		}
 		return new \WP_Error( 'addsynapse_assistant_scoped', 'This application password only works for the AddSynapse remote routes.', array( 'status' => 403 ) );
@@ -368,6 +371,7 @@ final class RemoteAccess {
 			return new \WP_Error( 'addsynapse_assistant_not_remote', 'Only the AddSynapse application can disconnect itself.', array( 'status' => 400 ) );
 		}
 		$deleted = \WP_Application_Passwords::delete_application_password( get_current_user_id(), (string) self::$item['uuid'] );
+		PlanInfo::forget();
 		return rest_ensure_response( array( 'deleted' => true === $deleted ) );
 	}
 
@@ -404,6 +408,7 @@ final class RemoteAccess {
 		delete_option( SetupStatus::CHECK_OPTION );
 		delete_option( RelayClaim::CLAIMED_OPTION );
 		delete_option( RelayClaim::PENDING_OPTION );
+		PlanInfo::forget();
 		wp_clear_scheduled_hook( RelayClaim::PENDING_CRON );
 		$nonces = $wpdb->get_col( $wpdb->prepare( "SELECT option_name FROM {$wpdb->options} WHERE option_name LIKE %s", $wpdb->esc_like( RemoteTicket::NONCE_PREFIX ) . '%' ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 		foreach ( $nonces as $nonce ) {

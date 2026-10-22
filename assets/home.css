@@ -298,3 +298,6 @@
 .adsa-addway .adsa-more > summary .adsa-badge { margin-left: 4px; }
 .adsa-added { margin: 12px 0 0; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .adsa-authnote { margin: 10px 0 0; padding: 8px 12px; border-left: 3px solid var(--adsa-accent); background: #f6f7f7; }
+/* 1.3.2: plan and today's count on the «Claude or ChatGPT» card. */
+.adsa-plan { margin: 8px 0 0; font-weight: 500; }
+.adsa-plan a { font-weight: 400; margin-left: 6px; }

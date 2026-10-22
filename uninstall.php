@@ -91,6 +91,8 @@ function addsynapse_assistant_uninstall_site() {
 		'addsynapse_assistant_relay_claimed',
 		// 1.3.1: a claimed password AddSynapse has not used yet (uuid, user, time — never the password).
 		'addsynapse_assistant_relay_pending',
+		// 1.3.2: the plan and today's count AddSynapse reported (no personal data).
+		'addsynapse_assistant_relay_plan',
 	);
 	foreach ( $options as $option ) {
 		delete_option( $option );

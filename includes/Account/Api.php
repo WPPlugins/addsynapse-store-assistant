@@ -38,6 +38,9 @@ final class Api {
 	/** «Add to Claude» of the setup wizard: AddSynapse remembers which site to check, then opens Claude's connector page. */
 	public const CLAUDE_CONNECT_URL = 'https://app.addsynapse.com/store-assistant/connect';
 
+	/** «Change plan» on Home (1.3.2): the AddSynapse plans page of the account (an ordinary link). */
+	public const BILLING_URL = 'https://app.addsynapse.com/billing/claude';
+
 	/**
 	 * The «Add to Claude» link with this site's address (an ordinary link the administrator's browser opens; nothing is sent
 	 * by the server).
