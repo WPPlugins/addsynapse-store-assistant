@@ -2,7 +2,7 @@
 /**
  * Ability: writes a change set the shop owner approved on AddSynapse (or restores it on Undo) — price/stock
  * fields of products and variations, SEO title/description of products, pages and posts, coupons, page/post content and
- * status, featured images and navigation menus (StateUnits). Never
+ * status, featured images, navigation menus and the site's look (StateUnits, Design\DesignUnits). Never
  * offered to the in-admin chat (no agent meta) — only to the remote route.
  *
  * All-or-nothing pre-check: every unit must still hold the expected («before») values, otherwise nothing is
@@ -15,6 +15,7 @@ namespace Addsynapse\StoreAssistant\Remote;
 
 use Addsynapse\StoreAssistant\Abilities\AbilitiesRegistrar;
 use Addsynapse\StoreAssistant\Adapters\Seo\SeoAdapters;
+use Addsynapse\StoreAssistant\Design\DesignUnits;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -25,6 +26,55 @@ final class ApplyChangesAbility {
 
 	public const NAME      = 'addsynapse-assistant/apply-changes';
 	public const MAX_ITEMS = 100;
+
+	/**
+	 * True only while a logged-in administrator decides on the wp-admin approval page (AdminApprovals): the coupon ceiling
+	 * (CouponBrake) is for approvals that come from AddSynapse.
+	 *
+	 * @var bool
+	 */
+	private static $in_admin = false;
+
+	/**
+	 * Runs a change set approved (or undone) on the wp-admin approval page by the logged-in administrator.
+	 *
+	 * @param array<string,mixed> $input Same shape as the ability input.
+	 * @return array<string,mixed>
+	 */
+	public static function run_in_admin( array $input ): array {
+		self::$in_admin = true;
+		try {
+			return ( new self() )->execute( $input );
+		} finally {
+			self::$in_admin = false;
+		}
+	}
+
+	/**
+	 * The conflicts of these units as the wp-admin page would see them (hold-changes: checked, nothing written).
+	 *
+	 * @param array<int,array<string,mixed>> $items Items.
+	 * @return array<int,array<string,mixed>>
+	 */
+	public static function conflicts( array $items ): array {
+		self::$in_admin = true;
+		try {
+			$self = new self();
+			$out  = array();
+			foreach ( array_values( $items ) as $i => $item ) {
+				$reason = $self->check( (array) $item, SeoAdapters::current()->key() );
+				if ( '' !== $reason ) {
+					$out[] = array(
+						'index'  => $i,
+						'reason' => $reason,
+					);
+				}
+			}
+			return $out;
+		} finally {
+			self::$in_admin = false;
+		}
+	}
 
 	/**
 	 * Registers the ability.
@@ -38,7 +88,7 @@ final class ApplyChangesAbility {
 			self::NAME,
 			array(
 				'label'               => __( 'Apply an approved change set', 'addsynapse-store-assistant' ),
-				'description'         => 'Writes the values of a change set the shop owner approved (or restores them on Undo): price/stock fields of products and variations, SEO title/description, coupons, page/post content and status, featured images, navigation menus. Refuses everything if anything no longer holds the expected values.',
+				'description'         => 'Writes the values of a change set the shop owner approved (or restores them on Undo): price/stock fields of products and variations, SEO title/description, coupons, page/post content and status, featured images, navigation menus, and the look of the site (styles, Additional CSS, theme settings, widgets, templates, Elementor). Refuses everything if anything no longer holds the expected values. A coupon above 50% off is refused here: it is approved in wp-admin (hold-changes).',
 				'category'            => AbilitiesRegistrar::CATEGORY,
 				'input_schema'        => array(
 					'type'                 => 'object',
@@ -75,6 +125,10 @@ final class ApplyChangesAbility {
 										'minimum' => 0,
 									),
 									'adapter' => array( 'type' => 'string' ),
+									'key'     => array(
+										'type'      => 'string',
+										'maxLength' => 300,
+									),
 									'expect'  => $values,
 									'set'     => $values,
 								),
@@ -100,6 +154,7 @@ final class ApplyChangesAbility {
 	 *
 	 * @param array<string,mixed> $input Input.
 	 * @return array<string,mixed>
+	 * @throws \Throwable When WordPress refuses a design write (the design units written before it are put back first).
 	 */
 	public function execute( $input ) {
 		$items     = array_values( (array) $input['items'] );
@@ -117,17 +172,53 @@ final class ApplyChangesAbility {
 			}
 		}
 		if ( $conflicts ) {
-			ApprovalLog::add( (string) $input['changeset'], (string) $input['action'], (string) ( $input['summary'] ?? '' ), array(), 'refused: ' . count( $conflicts ) . ' conflict(s)' );
+			$brake = in_array( CouponBrake::message(), array_column( $conflicts, 'reason' ), true );
+			ApprovalLog::add( (string) $input['changeset'], (string) $input['action'], (string) ( $input['summary'] ?? '' ), array(), $brake ? 'refused: ' . CouponBrake::ERROR : 'refused: ' . count( $conflicts ) . ' conflict(s)' );
+			// A big coupon: the typed refusal of the Connector («approve it in the shop admin»), with the page to go to.
 			return array(
 				'ok'        => false,
 				'conflicts' => $conflicts,
-			);
+			) + ( $brake ? array(
+				'error'       => CouponBrake::ERROR,
+				'message'     => CouponBrake::message(),
+				'approve_url' => AdminApprovals::url( (string) $input['changeset'] ),
+			) : array() );
 		}
 		$ids     = array();
 		$rows    = array();
 		$written = array();
+		$design  = array();
+		$notify  = array();
 		foreach ( $items as $index => $item ) {
-			$kind   = (string) $item['kind'];
+			$kind = (string) $item['kind'];
+			if ( DesignUnits::handles( $kind ) ) {
+				$key    = (string) ( $item['key'] ?? '' );
+				$before = DesignUnits::read( $kind, $key );
+				try {
+					DesignUnits::write( $kind, $key, (array) $item['set'] );
+				} catch ( \Throwable $e ) {
+					// A design change is several places at most: put the ones already written back, then report the failure.
+					foreach ( array_reverse( $design ) as $done ) {
+						try {
+							DesignUnits::write( $done[0], $done[1], $done[2] );
+						} catch ( \Throwable $ignored ) {
+							unset( $ignored );
+						}
+					}
+					ApprovalLog::add( (string) $input['changeset'], (string) $input['action'], (string) ( $input['summary'] ?? '' ), array(), 'failed: ' . mb_substr( $e->getMessage(), 0, 150 ) );
+					throw $e;
+				}
+				$design[] = array( $kind, $key, (array) $item['expect'] );
+				$ids[]    = 0;
+				$rows[]   = array(
+					'id'   => 0,
+					'kind' => $kind,
+					'name' => ! empty( $before['exists'] ) ? (string) $before['name'] : $key,
+					'from' => DesignUnits::for_log( $kind, $item['expect'] ),
+					'to'   => DesignUnits::for_log( $kind, $item['set'] ),
+				);
+				continue;
+			}//end if
 			$set    = is_array( $item['set'] ) ? $item['set'] : null;
 			$before = (int) $item['id'] ? StateUnits::read(
 				array(
@@ -154,8 +245,15 @@ final class ApplyChangesAbility {
 				'from' => StateUnits::for_log( $kind, $item['expect'] ),
 				'to'   => StateUnits::for_log( $kind, $set ),
 			);
+			if ( 'coupon' === $kind && null !== $set && 'approve' === $input['action'] && ! self::$in_admin ) {
+				$notify[] = array( $id, $set, 0 === (int) $item['id'] );
+			}
 		}//end foreach
 		ApprovalLog::add( (string) $input['changeset'], (string) $input['action'], (string) ( $input['summary'] ?? '' ), $rows, 'ok' );
+		// A coupon approved from AddSynapse: the site's administrator gets a short notice (security review 22/10/2026).
+		foreach ( $notify as $n ) {
+			CouponBrake::notify( (int) $n[0], (array) $n[1], (bool) $n[2] );
+		}
 		return array(
 			'ok'      => true,
 			'ids'     => $ids,
@@ -174,11 +272,19 @@ final class ApplyChangesAbility {
 		$id     = (int) $item['id'];
 		$expect = is_array( $item['expect'] ) ? $item['expect'] : null;
 		$set    = is_array( $item['set'] ) ? $item['set'] : null;
+		if ( DesignUnits::handles( $kind ) ) {
+			return $this->check_design( $kind, (string) ( $item['key'] ?? '' ), $expect, $set );
+		}
 		if ( null !== $set ) {
 			$invalid = StateUnits::invalid( $kind, $set );
 			if ( '' !== $invalid ) {
 				return $invalid;
 			}
+		}
+		// Owner 22/10/2026: a coupon above 50 % off (new, raised, switched to percent, or brought back by an Undo) is never
+		// written from AddSynapse — only on the wp-admin approval page (whatever AddSynapse sends).
+		if ( ! self::$in_admin && CouponBrake::needs_admin( $kind, $id, $set ) ) {
+			return CouponBrake::message();
 		}
 		if ( 'coupon' === $kind && 0 === $id ) {
 			if ( null !== $expect || null === $set || empty( $set['code'] ) ) {
@@ -204,6 +310,33 @@ final class ApplyChangesAbility {
 		if ( empty( $now['exists'] ) ) {
 			return (string) ( $now['reason'] ?? 'Not found.' );
 		}
+		// Undo of a coupon the change set created deletes it — never once an order used it (the orders keep the code).
+		if ( 'coupon' === $kind && null === $set && ! empty( $now['values']['usage_count'] ) ) {
+			return sprintf( 'The coupon was already used in %d order(s), so it is not deleted.', (int) $now['values']['usage_count'] );
+		}
 		return StateUnits::holds( $kind, (array) $now['values'], $expect ) ? '' : 'Changed since the draft.';
+	}
+
+	/**
+	 * Why a design unit may not be written now ('' = it may): it must hold the expected values and the new values must be
+	 * ones WordPress keeps as they are (checked again here, whatever prepared them).
+	 *
+	 * @param string                   $kind   Kind.
+	 * @param string                   $key    Key.
+	 * @param array<string,mixed>|null $expect Expected values.
+	 * @param array<string,mixed>|null $set    New values.
+	 */
+	private function check_design( string $kind, string $key, ?array $expect, ?array $set ): string {
+		if ( null === $expect || null === $set || '' === $key ) {
+			return 'Key, expected and new values are required.';
+		}
+		$now = DesignUnits::read( $kind, $key );
+		if ( empty( $now['exists'] ) ) {
+			return (string) ( $now['reason'] ?? 'Not found.' );
+		}
+		if ( ! DesignUnits::holds( $kind, (array) $now['values'], $expect ) ) {
+			return 'Changed since the draft.';
+		}
+		return DesignUnits::invalid( $kind, $key, $set, (array) $now['values'] );
 	}
 }

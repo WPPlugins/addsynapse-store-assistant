@@ -21,7 +21,9 @@ use Addsynapse\StoreAssistant\Byok\KeyStore;
 use Addsynapse\StoreAssistant\Byok\Usage as KeyUsage;
 use Addsynapse\StoreAssistant\Config;
 use Addsynapse\StoreAssistant\Environment;
+use Addsynapse\StoreAssistant\Remote\RelayKeys;
 use Addsynapse\StoreAssistant\Remote\PlanInfo;
+use Addsynapse\StoreAssistant\Remote\RelayClaim;
 use Addsynapse\StoreAssistant\Remote\RemoteAccess;
 use Addsynapse\StoreAssistant\Remote\SetupStatus;
 
@@ -38,6 +40,9 @@ final class HomePage {
 	/** The admin-post action of the «Finish» button. */
 	public const ACTION_FINISH = 'addsynapse_assistant_onboarding_finish';
 
+	/** The admin-post action of «Disconnect AddSynapse» (1.3.4). */
+	public const ACTION_DISCONNECT = 'addsynapse_assistant_relay_disconnect';
+
 	/** Script/style handle. */
 	public const HANDLE = 'addsynapse-assistant-home';
 
@@ -49,6 +54,7 @@ final class HomePage {
 	 */
 	public function register_hooks(): void {
 		add_action( 'admin_post_' . self::ACTION_FINISH, array( $this, 'handle_finish' ) );
+		add_action( 'admin_post_' . self::ACTION_DISCONNECT, array( self::class, 'handle_disconnect' ) );
 		// Before WordPress checks access to the requested page: old addresses keep working.
 		add_action( 'admin_menu', array( self::class, 'legacy_redirects' ), 1 );
 	}
@@ -151,6 +157,20 @@ final class HomePage {
 	}
 
 	/**
+	 * «Disconnect AddSynapse» (Home): revokes every AddSynapse connection key and application password of this site at once
+	 * (RemoteAccess::revoke_all, as on deactivation). AddSynapse can no longer reach the site; the approval log stays.
+	 */
+	public static function handle_disconnect(): void {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_die( esc_html__( 'You are not allowed to access this page.', 'addsynapse-store-assistant' ), 403 );
+		}
+		check_admin_referer( self::ACTION_DISCONNECT );
+		RemoteAccess::revoke_all();
+		wp_safe_redirect( self::url( array( 'welcome' => 'disconnected' ) ) );
+		exit;
+	}
+
+	/**
 	 * Old addresses (menu items of 1.3.0-dev and earlier) → their new place. Runs on admin_menu:1, before any output.
 	 */
 	public static function legacy_redirects(): void {
@@ -209,11 +229,13 @@ final class HomePage {
 	 * Screen body (called by our Overview renderer).
 	 */
 	public static function render(): void {
-		$view = self::view();
+		$view = RelayClaim::has_confirm() ? 'mcp' : self::view();
 		echo '<div class="wrap adsa-home adsa-view-' . esc_attr( $view ) . '">';
 		// WordPress moves admin notices after the first heading; keep them above our hero.
 		echo '<h1 class="screen-reader-text">' . esc_html( 'AddSynapse Store Assistant' ) . '</h1><hr class="wp-header-end">';
-		if ( 'choose' === $view ) {
+		if ( RelayClaim::has_confirm() ) {
+			self::render_relay_confirm();
+		} elseif ( 'choose' === $view ) {
 			self::render_choose();
 		} elseif ( 'mcp' === $view ) {
 			self::render_mcp();
@@ -480,10 +502,13 @@ final class HomePage {
 			: __( 'Using AddSynapse, tell me my store name and how many products it has. Change nothing.', 'addsynapse-store-assistant' );
 		// Connected for sure (AddSynapse confirmed the password, or used it): every step is done.
 		$ready = ! empty( $status['ready'] );
+		// 1.3.4: AddSynapse connects with this plugin's own key, so Application Passwords being off (Wordfence's default) no
+		// longer blocks anything; only HTTPS is required (RelayKeys::transport_ok).
 		$steps = array(
 			'check'   => array( __( 'Check', 'addsynapse-store-assistant' ), $ready || (bool) $status['checked'] ),
-			// Done only when the site is connected for sure, or the manager says so («I've added it») — never on a click of «Add to Claude» or «Copy».
-			'add'     => array( __( 'Add to your AI', 'addsynapse-store-assistant' ), $ready ),
+			// Done once the site is connected (step 3 done: the AI already sent the connect link), or the manager says so
+			// («I've added it») — never on a click of «Add to Claude» or «Copy». Owner 22/10: step 3 green, step 2 not.
+			'add'     => array( __( 'Add to your AI', 'addsynapse-store-assistant' ), $ready || (bool) $status['connected'] ),
 			'connect' => array( __( 'Connect', 'addsynapse-store-assistant' ), (bool) $status['connected'] ),
 			'confirm' => array( __( 'Confirm', 'addsynapse-store-assistant' ), $ready || (bool) $status['used'] ),
 		);
@@ -492,11 +517,21 @@ final class HomePage {
 		echo '<h2 class="adsa-pathhead__title">' . esc_html( self::is_site() ? __( 'Use your site from Claude or ChatGPT', 'addsynapse-store-assistant' ) : __( 'Use your store from Claude or ChatGPT', 'addsynapse-store-assistant' ) ) . '</h2>';
 		echo '<p class="adsa-pathhead__lead">' . esc_html__( 'Four short steps, about five minutes. Each step turns green on its own.', 'addsynapse-store-assistant' ) . '</p>';
 		echo '</div>';
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- display only: a success line when AddSynapse sent the browser back.
+		if ( $ready && isset( $_GET['as_relay'] ) && 'connected' === sanitize_key( wp_unslash( $_GET['as_relay'] ) ) ) {
+			// Back from AddSynapse right after «Connect» (1.3.3, hub protocol 3).
+			echo '<div class="notice notice-success adsa-connected-notice" data-adsa-relay-connected><p><strong>' . esc_html__( 'Connected ✓', 'addsynapse-store-assistant' ) . '</strong> ' . esc_html__( 'This site is now connected to AddSynapse. Go back to your AI chat and ask it something about your site.', 'addsynapse-store-assistant' ) . '</p></div>';
+		}
+		if ( ! $ready && ! RelayKeys::transport_ok() ) {
+			echo '<div class="notice notice-error inline adsa-apppw" data-adsa-https><p><strong>' . esc_html__( 'Before you connect: this site does not use HTTPS', 'addsynapse-store-assistant' ) . '</strong></p>';
+			echo '<p>' . esc_html__( 'AddSynapse connects only to sites that use HTTPS. Switch the site address to https:// (Settings → General), then check again.', 'addsynapse-store-assistant' ) . '</p>';
+			echo '<p class="adsa-buttons"><a class="button button-primary" href="' . esc_url( admin_url( 'options-general.php' ) ) . '">' . esc_html__( 'Open General Settings', 'addsynapse-store-assistant' ) . '</a> <a class="button" href="' . esc_url( self::setup_url( 'mcp' ) ) . '">' . esc_html__( 'Check again', 'addsynapse-store-assistant' ) . '</a></p></div>';
+		}
 		self::progress( $steps );
 		echo '<ol class="adsa-steps" data-path="mcp">';
 
 		self::step_open( 'check', 1, __( 'Check the connection', 'addsynapse-store-assistant' ), $steps['check'][1] );
-		echo '<p>' . esc_html__( 'Checks HTTPS, Application Passwords, the REST API and the sign-in headers of this site. Runs on your server only.', 'addsynapse-store-assistant' ) . '</p>';
+		echo '<p>' . esc_html__( 'Checks HTTPS, the REST API and the sign-in header of this site. Runs on your server only.', 'addsynapse-store-assistant' ) . '</p>';
 		echo '<button type="button" class="button button-primary adsa-check">' . esc_html__( 'Check site connectivity', 'addsynapse-store-assistant' ) . '</button>';
 		echo '<div class="adsa-check-result" aria-live="polite"></div>';
 		self::step_close();
@@ -511,7 +546,7 @@ final class HomePage {
 			echo '<p class="adsa-state is-ok" data-connected="1"><span class="adsa-dot" aria-hidden="true"></span><span class="adsa-state__text">' . esc_html__( 'Connected ✓ — try asking your AI:', 'addsynapse-store-assistant' ) . '</span></p>';
 			self::copy_field( $confirm, __( 'Prompt to send', 'addsynapse-store-assistant' ), __( 'Copy prompt', 'addsynapse-store-assistant' ) );
 		} else {
-			echo '<p>' . esc_html__( 'Send this to your AI. It answers with a link to this site\'s «Authorize Application» screen — approve it there.', 'addsynapse-store-assistant' ) . '</p>';
+			echo '<p>' . esc_html__( 'Send this to your AI. It answers with a link to this plugin\'s page on your site — confirm the connection there.', 'addsynapse-store-assistant' ) . '</p>';
 			self::copy_field( self::connect_prompt(), __( 'Prompt to send', 'addsynapse-store-assistant' ), __( 'Copy prompt', 'addsynapse-store-assistant' ) );
 			self::authorize_note();
 			$waiting = $status['connected']
@@ -536,12 +571,33 @@ final class HomePage {
 		self::finish( 'mcp', __( 'You can finish now and come back to these steps later from Home.', 'addsynapse-store-assistant' ) );
 
 		echo '<details class="adsa-more adsa-more--box"><summary>' . esc_html__( 'More details: what AddSynapse can do on this site', 'addsynapse-store-assistant' ) . '</summary><ul>';
-		echo '<li>' . esc_html__( 'AddSynapse (addsynapse.com) is an external service. It connects only after you approve it on the «Authorize Application» screen, with a password WordPress creates for it.', 'addsynapse-store-assistant' ) . '</li>';
-		echo '<li>' . esc_html__( 'That password opens only this plugin\'s store tools: read the store, products, categories and sales totals (no customer details), and write prices you approved. It cannot reach users, plugins, settings or XML-RPC.', 'addsynapse-store-assistant' ) . '</li>';
+		echo '<li>' . esc_html__( 'AddSynapse (addsynapse.com) is an external service. It connects only after you confirm it on this plugin\'s page, with a key this plugin creates for it.', 'addsynapse-store-assistant' ) . '</li>';
+		echo '<li>' . esc_html__( 'That key opens only this plugin\'s store tools: read the store, products, categories and sales totals (no customer details), and write changes you approved. It cannot reach users, plugins, settings, other REST routes or XML-RPC.', 'addsynapse-store-assistant' ) . '</li>';
 		echo '<li>' . esc_html__( 'Changes are prepared as drafts on AddSynapse. They are written here only after you press Approve, are listed in the Approval log, and can be undone.', 'addsynapse-store-assistant' ) . '</li>';
-		echo '<li>' . esc_html__( 'Disconnect at any time: Users → Profile → Application Passwords → revoke «AddSynapse».', 'addsynapse-store-assistant' ) . '</li>';
-		echo '<li>' . esc_html__( 'Deactivating or deleting this plugin also revokes every password WordPress issued to AddSynapse, for all users of this site.', 'addsynapse-store-assistant' ) . '</li>';
+		echo '<li>' . esc_html__( 'Disconnect at any time: AddSynapse → Home → «Disconnect AddSynapse».', 'addsynapse-store-assistant' ) . '</li>';
+		echo '<li>' . esc_html__( 'Deactivating or deleting this plugin also revokes the AddSynapse key (and any password WordPress issued to AddSynapse before), for all users of this site.', 'addsynapse-store-assistant' ) . '</li>';
 		echo '</ul></details>';
+	}
+
+	/**
+	 * The «confirm the account» screen (back from WordPress' «Authorize Application» screen, or AddSynapse's start link): the wizard's head and progress (steps 1–2 done, step 3
+	 * current) with the «confirm the account» card of RelayClaim.
+	 */
+	private static function render_relay_confirm(): void {
+		echo '<div class="adsa-pathhead">';
+		echo '<h2 class="adsa-pathhead__title">' . esc_html( self::is_site() ? __( 'Use your site from Claude or ChatGPT', 'addsynapse-store-assistant' ) : __( 'Use your store from Claude or ChatGPT', 'addsynapse-store-assistant' ) ) . '</h2>';
+		echo '</div>';
+		self::progress(
+			array(
+				'check'   => array( __( 'Check', 'addsynapse-store-assistant' ), true ),
+				'add'     => array( __( 'Add to your AI', 'addsynapse-store-assistant' ), true ),
+				'connect' => array( __( 'Connect', 'addsynapse-store-assistant' ), false ),
+				'confirm' => array( __( 'Confirm', 'addsynapse-store-assistant' ), false ),
+			)
+		);
+		echo '<ol class="adsa-steps" data-path="mcp">';
+		RelayClaim::render_confirm_card();
+		echo '</ol>';
 	}
 
 	/**
@@ -549,7 +605,7 @@ final class HomePage {
 	 * needed?»).
 	 */
 	public static function authorize_note(): void {
-		echo '<p class="adsa-authnote">' . esc_html__( 'Next you\'ll see WordPress\' own approval screen — click «Yes, I approve». It gives AddSynapse a password that works only for these tools; you can revoke it any time.', 'addsynapse-store-assistant' ) . '</p>';
+		echo '<p class="adsa-authnote">' . esc_html__( 'Next you\'ll see this plugin\'s page with the AddSynapse account — click «Connect». It gives AddSynapse a key that works only for these tools; you can disconnect any time.', 'addsynapse-store-assistant' ) . '</p>';
 	}
 
 	/**
@@ -724,7 +780,12 @@ final class HomePage {
 		}
 		echo '</header>';
 
-		if ( 'connected' === $welcome ) {
+		if ( 'disconnected' === $welcome ) {
+			echo '<div class="adsa-welcome" role="status" data-adsa-disconnected>';
+			self::print_icon( 'check' );
+			echo '<div><strong>' . esc_html__( 'Disconnected.', 'addsynapse-store-assistant' ) . '</strong> ';
+			echo esc_html__( 'AddSynapse can no longer reach this site. Connect again any time from your AI chat.', 'addsynapse-store-assistant' ) . '</div></div>';
+		} elseif ( 'connected' === $welcome ) {
 			// RelayClaim: the approval came back twice (refresh/back) and AddSynapse had already taken the first one.
 			echo '<div class="adsa-welcome" role="status">';
 			self::print_icon( 'check' );
@@ -765,11 +826,18 @@ final class HomePage {
 			self::copy_field( self::connect_prompt(), __( 'Prompt to send', 'addsynapse-store-assistant' ), __( 'Copy prompt', 'addsynapse-store-assistant' ) );
 			echo '<p><a href="' . esc_url( self::setup_url( 'mcp' ) ) . '">' . esc_html__( 'Setup steps', 'addsynapse-store-assistant' ) . '</a></p>';
 			echo '</details>';
+			if ( current_user_can( 'manage_options' ) ) {
+				echo '<form method="post" class="adsa-disconnect" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '" data-adsa-disconnect>';
+				wp_nonce_field( self::ACTION_DISCONNECT );
+				echo '<input type="hidden" name="action" value="' . esc_attr( self::ACTION_DISCONNECT ) . '">';
+				echo '<button type="submit" class="button-link button-link-delete" data-confirm="' . esc_attr__( 'Disconnect AddSynapse? Claude or ChatGPT will no longer reach this site until you connect again.', 'addsynapse-store-assistant' ) . '">' . esc_html__( 'Disconnect AddSynapse', 'addsynapse-store-assistant' ) . '</button>';
+				echo '</form>';
+			}
 		} else {
 			echo '<p>' . esc_html( self::is_site() ? __( 'Talk to your site from claude.ai or ChatGPT (beta). No API key needed.', 'addsynapse-store-assistant' ) : __( 'Talk to your store from claude.ai or ChatGPT (beta). No API key needed.', 'addsynapse-store-assistant' ) ) . '</p>';
 			echo '<p class="adsa-plan">' . esc_html( PlanInfo::line() ) . '</p>';
 			echo '<p class="adsa-buttons"><a class="button button-primary" href="' . esc_url( self::setup_url( 'mcp' ) ) . '">' . esc_html( $active ? __( 'Use this way too', 'addsynapse-store-assistant' ) : __( 'Set up', 'addsynapse-store-assistant' ) ) . '</a></p>';
-		}
+		}//end if
 		echo '</section>';
 
 		// Way B.

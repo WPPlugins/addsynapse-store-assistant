@@ -27,20 +27,17 @@ final class SetupStatus {
 	 * @return \WP_REST_Response
 	 */
 	public static function check() {
-		$checks   = array();
-		$https    = 0 === strpos( home_url( '/' ), 'https://' );
+		$checks = array();
+		// 1.3.4: AddSynapse connects with this plugin's own key (RelayKeys), so WordPress' Application Passwords (off by
+		// default with Wordfence) are not needed any more; only HTTPS is (a `local` development site is the exception).
+		$https    = 0 === strpos( home_url( '/' ), 'https://' ) || ( 'local' === wp_get_environment_type() && RelayKeys::transport_ok() );
 		$checks[] = array(
-			'id'     => 'https',
-			'ok'     => $https,
-			'label'  => __( 'The site uses HTTPS', 'addsynapse-store-assistant' ),
-			'advice' => $https ? '' : __( 'WordPress only offers Application Passwords on HTTPS sites. Enable HTTPS first.', 'addsynapse-store-assistant' ),
-		);
-		$apps     = function_exists( 'wp_is_application_passwords_available' ) && wp_is_application_passwords_available();
-		$checks[] = array(
-			'id'     => 'app_passwords',
-			'ok'     => $apps,
-			'label'  => __( 'Application Passwords are available', 'addsynapse-store-assistant' ),
-			'advice' => $apps ? '' : __( 'A security plugin or the site configuration turned Application Passwords off. Allow them so you can approve the connection.', 'addsynapse-store-assistant' ),
+			'id'        => 'https',
+			'ok'        => $https,
+			'label'     => __( 'The site uses HTTPS', 'addsynapse-store-assistant' ),
+			'advice'    => $https ? '' : __( 'AddSynapse connects only to sites that use HTTPS. Switch the site address to https:// (Settings → General).', 'addsynapse-store-assistant' ),
+			'fix_url'   => $https ? '' : admin_url( 'options-general.php' ),
+			'fix_label' => $https ? '' : __( 'Open General Settings', 'addsynapse-store-assistant' ),
 		);
 		// WooCommerce is not required: a plain WordPress site connects too (site tools only) — a note, never a failed check.
 		$has_wc   = Environment::has_woocommerce();
@@ -75,15 +72,13 @@ final class SetupStatus {
 				is_wp_error( $response ) ? $response->get_error_message() : (string) $code
 			),
 		);
-		$auth     = ! empty( $body['authorization'] );
+		// The connection key travels in AddSynapse's own header (X-AddSynapse-Auth); the standard one is not needed.
 		$fallback = ! empty( $body['fallback'] );
 		$checks[] = array(
 			'id'     => 'auth_header',
-			'ok'     => $auth || $fallback,
-			'label'  => __( 'Sign-in headers reach WordPress', 'addsynapse-store-assistant' ),
-			'advice' => $auth ? '' : ( $fallback
-				? __( 'Your host removes the standard Authorization header; AddSynapse will use its own header instead. Nothing to do.', 'addsynapse-store-assistant' )
-				: __( 'Your host removes sign-in headers. Ask your host to pass the Authorization header to PHP.', 'addsynapse-store-assistant' ) ),
+			'ok'     => $fallback,
+			'label'  => __( 'Sign-in header reaches WordPress', 'addsynapse-store-assistant' ),
+			'advice' => $fallback ? '' : __( 'A firewall or your host removes the X-AddSynapse-Auth header. Ask your host to pass it to PHP.', 'addsynapse-store-assistant' ),
 		);
 		$ok       = true;
 		foreach ( $checks as $c ) {
@@ -115,7 +110,7 @@ final class SetupStatus {
 	}
 
 	/**
-	 * The newest AddSynapse application password of any user who can manage the shop.
+	 * The newest AddSynapse connection key or application password of any user who can manage the shop.
 	 *
 	 * @return array<string,mixed>
 	 */
@@ -124,6 +119,23 @@ final class SetupStatus {
 		$claim   = get_option( RelayClaim::CLAIMED_OPTION, array() );
 		$claim   = is_array( $claim ) ? $claim : array();
 		$claimed = false;
+		foreach ( RelayKeys::listing() as $key ) {
+			$user = get_userdata( $key['user'] );
+			if ( ! $user instanceof \WP_User || ! user_can( $user, Config::capability() ) ) {
+				continue;
+			}
+			if ( ! empty( $claim['uuid'] ) && hash_equals( (string) $claim['uuid'], RelayKeys::REF_PREFIX . $key['id'] ) ) {
+				$claimed = true;
+			}
+			if ( null === $found || $key['created'] > (int) $found['created'] ) {
+				$found = array(
+					'created'   => $key['created'],
+					'last_used' => $key['last_used'] > 0 ? $key['last_used'] : null,
+					'name'      => 'AddSynapse',
+					'user'      => (string) $user->user_login,
+				);
+			}
+		}
 		if ( class_exists( '\WP_Application_Passwords' ) ) {
 			$users = get_users(
 				array(

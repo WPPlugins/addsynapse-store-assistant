@@ -1,7 +1,17 @@
 <?php
 /**
- * Hand-over of the AddSynapse application password, right after the owner approved it on WordPress' own
- * «Authorize Application» screen.
+ * Connecting this site to an AddSynapse account.
+ *
+ * 1.3.4 (protocol 4, the way AddSynapse uses for every site with this version): AddSynapse sends the administrator to this
+ * plugin's own page (admin.php?page=addsynapse&as_relay=start&state=…). It names the AddSynapse account that started the
+ * connect («Connect this site to the AddSynapse account …?»); only on Connect (POST, nonce, manage_options) a connection key
+ * is created (RelayKeys: bound to this administrator and that account, our routes only) and handed to AddSynapse server to
+ * server, in the JSON body of `POST /api/v1/assistant/relay-claim`. No WordPress Application Password is involved, so a
+ * security plugin that turns those off (Wordfence does by default) does not stop the connection — and nothing here changes
+ * that setting. Until AddSynapse really uses the new key it is PENDING, exactly like a password below.
+ *
+ * Before 1.3.4 (still accepted from an older AddSynapse): hand-over of the AddSynapse application password, right after the
+ * owner approved it on WordPress' own «Authorize Application» screen.
  *
  * WordPress core returns a new application password in the QUERY STRING of the success URL (authorize-application.php
  * has no other way). So the success URL AddSynapse asks for is THIS site's own admin page
@@ -67,8 +77,12 @@ final class RelayClaim {
 	 */
 	public const STASH_COOKIE = 'addsynapse_assistant_relay_k';
 
-	/** The claim protocol this plugin speaks: 2 = the hub keeps the claim pending until /relay/done. */
-	public const PROTOCOL = 2;
+	/**
+	 * The claim protocol this plugin speaks: 2 = the hub keeps the claim pending until /relay/done; 3 (1.3.3) = after
+	 * /relay/done the hub sends the browser back to this wizard (admin.php?page=addsynapse&setup=mcp&as_relay=connected);
+	 * 4 (1.3.4) = the connect starts on this plugin's page (as_relay=start) and hands over a connection key (RelayKeys).
+	 */
+	public const PROTOCOL = 4;
 
 	/**
 	 * Hooks.
@@ -77,6 +91,28 @@ final class RelayClaim {
 		add_action( 'admin_init', array( self::class, 'maybe_handle' ), 1 );
 		add_action( 'admin_init', array( self::class, 'expire_pending' ), 20 );
 		add_action( self::PENDING_CRON, array( self::class, 'expire_pending' ) );
+		add_action( 'admin_enqueue_scripts', array( self::class, 'authorize_screen_style' ) );
+	}
+
+	/** Style handle of the few lines below (no file: inline only). */
+	public const AUTH_STYLE = 'addsynapse-assistant-authorize';
+
+	/**
+	 * WordPress' own «Authorize Application» screen, only when the request is AddSynapse's (our fixed app_id): the
+	 * «You will be sent to …» URLs are long (core adds site_url, user_login and password to our success URL) and in
+	 * <code> they do not wrap, so they ran out of the card. Let them break anywhere inside the card.
+	 *
+	 * @param string $hook_suffix Current admin screen.
+	 */
+	public static function authorize_screen_style( $hook_suffix = '' ): void {
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only: only decides whether to add a stylesheet; core's own screen handles the request.
+		$app_id = isset( $_REQUEST['app_id'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['app_id'] ) ) : '';
+		if ( 'authorize-application.php' !== $hook_suffix || RemoteAccess::APP_ID !== $app_id ) {
+			return;
+		}
+		wp_register_style( self::AUTH_STYLE, false, array(), ADDSYNAPSE_ASSISTANT_VERSION );
+		wp_enqueue_style( self::AUTH_STYLE );
+		wp_add_inline_style( self::AUTH_STYLE, '.auth-app-card .description code{white-space:normal;overflow-wrap:anywhere;word-break:break-all}' );
 	}
 
 	/**
@@ -84,10 +120,14 @@ final class RelayClaim {
 	 */
 	public static function maybe_handle(): void {
 		// phpcs:disable WordPress.Security.NonceVerification.Recommended -- WordPress core's Authorize Application screen redirects here (it cannot carry our nonce); the request is bound by the one-time state AddSynapse issued, the logged-in administrator and WordPress' own hash of the password. The confirmation step below checks its own nonce.
-		if ( ! isset( $_GET['page'], $_GET['as_relay'] ) || self::PAGE !== $_GET['page'] || ! in_array( $_GET['as_relay'], array( 'callback', 'confirm' ), true ) ) {
+		if ( ! isset( $_GET['page'], $_GET['as_relay'] ) || self::PAGE !== $_GET['page'] || ! in_array( $_GET['as_relay'], array( 'callback', 'confirm', 'start' ), true ) ) {
 			return;
 		}
 		self::no_cache_headers();
+		if ( 'start' === $_GET['as_relay'] ) {
+			self::start_step();
+			return;
+		}
 		if ( 'confirm' === $_GET['as_relay'] ) {
 			// phpcs:enable
 			self::confirm_step();
@@ -207,6 +247,94 @@ final class RelayClaim {
 	}
 
 	/**
+	 * `as_relay=start` (protocol 4): AddSynapse sent the administrator here with its one-time state. Asks AddSynapse which
+	 * account started this connect and shows «Connect this site to the AddSynapse account …?». Creates nothing.
+	 */
+	private static function start_step(): void {
+		$state  = isset( $_GET['state'] ) ? sanitize_text_field( wp_unslash( $_GET['state'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- AddSynapse's link; it only shows the confirmation, which posts with its own nonce.
+		$result = self::start( $state );
+		if ( is_wp_error( $result ) ) {
+			self::leave( $result );
+			return;
+		}
+		if ( is_string( $result ) ) {
+			self::leave( $result );
+			return;
+		}
+		self::render_confirm( $state, $result );
+	}
+
+	/**
+	 * Checks the start of a protocol-4 connect and keeps what the confirmation shows (no secret: the key is created on Connect).
+	 *
+	 * @param string $state One-time state from AddSynapse.
+	 * @return array<string,mixed>|string|\WP_Error The stash to confirm, a page to go to, or why not.
+	 */
+	public static function start( string $state ) {
+		$failed = new \WP_Error( 'addsynapse_assistant_claim', __( 'The connection to AddSynapse was not completed. Nothing was sent. Start again from your AI chat.', 'addsynapse-store-assistant' ) );
+		if ( ! is_user_logged_in() || ! current_user_can( 'manage_options' ) ) {
+			return new \WP_Error( 'addsynapse_assistant_claim_forbidden', __( 'Only an administrator of this site can connect it to AddSynapse.', 'addsynapse-store-assistant' ) );
+		}
+		if ( ! RelayKeys::transport_ok() ) {
+			return new \WP_Error( 'addsynapse_assistant_claim_https', __( 'AddSynapse connects only to sites that use HTTPS. Switch the site address to https:// (Settings → General), then start again from your AI chat.', 'addsynapse-store-assistant' ) );
+		}
+		if ( ! preg_match( '/^[A-Za-z0-9]{40}$/D', $state ) ) {
+			return $failed;
+		}
+		$user    = wp_get_current_user();
+		$preview = Api::post(
+			self::PREVIEW_PATH,
+			array(
+				'state'    => $state,
+				'site_url' => site_url(),
+			),
+			10
+		);
+		if ( ! is_wp_error( $preview ) && 410 === $preview['status'] ) {
+			return self::already_connected( (int) $user->ID ) ? self::connected_url() : $failed;
+		}
+		$who = self::preview_who( $preview );
+		// Security review 22/10/2026 (P2-e): never connect without knowing which AddSynapse account asks — the confirm screen
+		// must name it. No answer / an empty one → a clear refusal, no key is created.
+		if ( '' === $who['account'] && '' === $who['email'] ) {
+			return new \WP_Error( 'addsynapse_assistant_claim_account', __( 'AddSynapse did not confirm which account started this connection, so nothing was connected. Check that this site can reach addsynapse.com, then start again from your AI chat.', 'addsynapse-store-assistant' ) );
+		}
+		$stash = array(
+			'mode'     => 'key',
+			'user'     => (int) $user->ID,
+			'login'    => (string) $user->user_login,
+			'site_url' => site_url(),
+		) + $who;
+		set_transient( self::stash_key( $state ), $stash, self::MAX_AGE );
+		return $stash;
+	}
+
+	/**
+	 * The masked account / email (and the account the site would move from) of a preview answer.
+	 *
+	 * @param array<string,mixed>|\WP_Error $preview Api::post result.
+	 * @return array{account:string,email:string,from:string}
+	 */
+	private static function preview_who( $preview ): array {
+		$account = '';
+		$email   = '';
+		$from    = '';
+		if ( ! is_wp_error( $preview ) && 200 === $preview['status'] && ! empty( $preview['body']['ok'] ) ) {
+			$account = sanitize_text_field( (string) ( $preview['body']['account'] ?? '' ) );
+			$email   = sanitize_text_field( (string) ( $preview['body']['email'] ?? '' ) );
+			$moving  = $preview['body']['moving_from'] ?? null;
+			if ( is_array( $moving ) ) {
+				$from = trim( sanitize_text_field( (string) ( $moving['account'] ?? '' ) ) . ' (' . sanitize_text_field( (string) ( $moving['email'] ?? '' ) ) . ')' );
+			}
+		}
+		return array(
+			'account' => mb_substr( $account, 0, 60 ),
+			'email'   => mb_substr( $email, 0, 120 ),
+			'from'    => mb_substr( $from, 0, 200 ),
+		);
+	}
+
+	/**
 	 * `as_relay=confirm`: GET shows «Connect this site to the AddSynapse account …?», POST (nonce) connects or cancels.
 	 */
 	private static function confirm_step(): void {
@@ -255,8 +383,13 @@ final class RelayClaim {
 			return self::already_connected( $user ) ? self::connected_url() : $failed;
 		}
 		if ( $cancel ) {
-			self::drop_unconfirmed( $user, (string) $stash['uuid'] );
+			if ( 'key' !== ( $stash['mode'] ?? '' ) ) {
+				self::drop_unconfirmed( $user, (string) $stash['uuid'] );
+			}
 			return HomePage::url( array( 'view' => 'home' ) );
+		}
+		if ( 'key' === ( $stash['mode'] ?? '' ) ) {
+			return self::handle_key( $state, $stash );
 		}
 		$key = base64_decode( strtr( $cookie, '-_', '+/' ), true ); // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_decode -- the random key set above.
 		$raw = base64_decode( (string) ( $stash['ct'] ?? '' ), true ); // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_decode -- the ciphertext stored above.
@@ -275,28 +408,78 @@ final class RelayClaim {
 	}
 
 	/**
-	 * «Connect this site to the AddSynapse account …?» — Connect / Cancel (POST, nonce).
+	 * A confirmation waiting to be shown inside the plugin's Home (set on admin_init, printed by HomePage::render).
+	 *
+	 * @var array{state:string,stash:array<string,mixed>}|null
+	 */
+	private static ?array $confirm = null;
+
+	/**
+	 * Whether this request shows the «confirm the account» card (as_relay=confirm, GET, a valid stash of this user).
+	 */
+	public static function has_confirm(): bool {
+		return null !== self::$confirm;
+	}
+
+	/**
+	 * GET of as_relay=confirm: remember what to ask; the normal admin page then renders it inside the wizard (1.3.3,
+	 * owner 22/10/2026: the bare wp_die page looked like an error).
 	 *
 	 * @param string              $state One-time state.
 	 * @param array<string,mixed> $stash What the approval left.
 	 */
 	private static function render_confirm( string $state, array $stash ): void {
-		$who  = trim( (string) ( $stash['account'] ?? '' ) . ( '' !== (string) ( $stash['email'] ?? '' ) ? ' (' . (string) $stash['email'] . ')' : '' ) );
-		$out  = '<h1>' . esc_html__( 'Connect this site to AddSynapse?', 'addsynapse-store-assistant' ) . '</h1>';
-		$out .= '<p data-adsa-relay-confirm>' . ( '' !== $who
-			/* translators: %s: the AddSynapse account name and masked email, e.g. «Maria's shop (ma***@example.com)». */
-			? sprintf( esc_html__( 'Connect this site to the AddSynapse account %s?', 'addsynapse-store-assistant' ), '<strong>' . esc_html( $who ) . '</strong>' )
-			: esc_html__( 'Connect this site to the AddSynapse account that started this connection?', 'addsynapse-store-assistant' ) ) . '</p>';
+		self::$confirm = array(
+			'state' => $state,
+			'stash' => $stash,
+		);
+	}
+
+	/**
+	 * «Last step: confirm the account» — step 3 of the wizard, with the AddSynapse account (name + masked email) and
+	 * Connect / Cancel (POST, nonce). Same security as before: nothing is sent to AddSynapse until Connect.
+	 */
+	public static function render_confirm_card(): void {
+		if ( null === self::$confirm ) {
+			return;
+		}
+		$state   = (string) self::$confirm['state'];
+		$stash   = (array) self::$confirm['stash'];
+		$account = trim( (string) ( $stash['account'] ?? '' ) );
+		$email   = trim( (string) ( $stash['email'] ?? '' ) );
+		$who     = trim( $account . ( '' !== $email ? ' (' . $email . ')' : '' ) );
+		echo '<li class="adsa-step is-current adsa-relayconfirm" id="adsa-step-connect" data-step="connect" data-adsa-relay-confirm>';
+		echo '<div class="adsa-step__head"><span class="adsa-step__num" aria-hidden="true"><span class="adsa-step__n">3</span></span>';
+		echo '<h2 class="adsa-step__title">' . esc_html__( 'Last step: confirm the account', 'addsynapse-store-assistant' ) . '</h2></div>';
+		echo '<div class="adsa-step__body">';
+		echo '<p>' . ( 'key' === ( $stash['mode'] ?? '' )
+			? esc_html__( 'AddSynapse asks to connect this site. Connect it to this AddSynapse account?', 'addsynapse-store-assistant' )
+			: esc_html__( 'WordPress approved the connection. Connect this site to this AddSynapse account?', 'addsynapse-store-assistant' ) ) . '</p>';
+		echo '<div class="adsa-relayconfirm__account">';
+		if ( '' !== $account || '' !== $email ) {
+			if ( '' !== $account ) {
+				echo '<strong class="adsa-relayconfirm__name">' . esc_html( $account ) . '</strong>';
+			}
+			if ( '' !== $email ) {
+				echo '<span class="adsa-relayconfirm__email">' . esc_html( $email ) . '</span>';
+			}
+		} else {
+			echo '<strong class="adsa-relayconfirm__name">' . esc_html__( 'The AddSynapse account that started this connection', 'addsynapse-store-assistant' ) . '</strong>';
+		}
+		echo '</div>';
 		if ( '' !== (string) ( $stash['from'] ?? '' ) ) {
-			$out .= '<p data-adsa-relay-move>' . sprintf(
+			echo '<p class="adsa-relayconfirm__move" data-adsa-relay-move>' . sprintf(
 				/* translators: 1: the AddSynapse account the site is connected to now (masked), 2: the new one. */
 				esc_html__( 'This site is connected to another AddSynapse account: %1$s. Move it to %2$s? The other account loses access to this site.', 'addsynapse-store-assistant' ),
 				'<strong>' . esc_html( (string) $stash['from'] ) . '</strong>',
 				'<strong>' . esc_html( '' !== $who ? $who : __( 'the new account', 'addsynapse-store-assistant' ) ) . '</strong>'
 			) . '</p>';
 		}
-		$out .= '<p>' . esc_html__( 'Only continue if it is your own account and you started this from your AI chat a moment ago. If someone sent you a link to approve, cancel.', 'addsynapse-store-assistant' ) . '</p>';
-		$out .= '<form method="post" action="' . esc_url(
+		echo '<p class="adsa-relayconfirm__why">' . esc_html__( 'We ask so nobody can link your site to their own account. Continue only if this is your account and you started this from your AI chat a moment ago.', 'addsynapse-store-assistant' ) . '</p>';
+		if ( 'key' === ( $stash['mode'] ?? '' ) ) {
+			echo '<p class="adsa-relayconfirm__scope" data-adsa-relay-key>' . esc_html__( 'Connect creates a key for AddSynapse that works only for this plugin\'s tools, acting as you. Changes still wait for your Approve. You can disconnect at any time from this page.', 'addsynapse-store-assistant' ) . '</p>';
+		}
+		echo '<form method="post" class="adsa-finish adsa-relayconfirm__form" action="' . esc_url(
 			add_query_arg(
 				array(
 					'page'     => self::PAGE,
@@ -305,10 +488,12 @@ final class RelayClaim {
 				),
 				admin_url( 'admin.php' )
 			)
-		) . '">' . wp_nonce_field( 'addsynapse_assistant_relay_confirm_' . $state, '_wpnonce', true, false );
-		$out .= '<p><button type="submit" name="as_connect" value="1" class="button button-primary">' . esc_html__( 'Connect', 'addsynapse-store-assistant' ) . '</button> ';
-		$out .= '<button type="submit" name="as_cancel" value="1" class="button">' . esc_html__( 'Cancel', 'addsynapse-store-assistant' ) . '</button></p></form>';
-		wp_die( $out, esc_html__( 'AddSynapse connection', 'addsynapse-store-assistant' ), array( 'response' => 200 ) ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- every part is escaped above.
+		) . '">';
+		wp_nonce_field( 'addsynapse_assistant_relay_confirm_' . $state );
+		echo '<button type="submit" name="as_connect" value="1" class="button button-primary button-hero adsa-finish__btn">' . esc_html__( 'Connect', 'addsynapse-store-assistant' ) . '</button>';
+		echo '<button type="submit" name="as_cancel" value="1" class="button button-secondary">' . esc_html__( 'Cancel', 'addsynapse-store-assistant' ) . '</button>';
+		echo '</form>';
+		echo '</div></li>';
 	}
 
 	/**
@@ -388,7 +573,18 @@ final class RelayClaim {
 	 * @param string $uuid    Password uuid.
 	 */
 	private static function drop_unconfirmed( int $user_id, string $uuid ): void {
-		if ( '' !== $uuid && ! self::is_confirmed( $user_id, $uuid ) && class_exists( '\WP_Application_Passwords' ) ) {
+		if ( '' === $uuid || self::is_confirmed( $user_id, $uuid ) ) {
+			return;
+		}
+		$key_id = RelayKeys::id_of( $uuid );
+		if ( '' !== $key_id ) {
+			$key = RelayKeys::get( $key_id );
+			if ( null !== $key && $key['user'] === $user_id ) {
+				RelayKeys::revoke( $key_id );
+			}
+			return;
+		}
+		if ( class_exists( '\WP_Application_Passwords' ) ) {
 			\WP_Application_Passwords::delete_application_password( $user_id, $uuid );
 		}
 	}
@@ -512,16 +708,7 @@ final class RelayClaim {
 		if ( 200 === $response['status'] && ! empty( $response['body']['ok'] ) ) {
 			if ( ! empty( $response['body']['pending'] ) ) {
 				// AddSynapse keeps it pending until the member who started confirms on AddSynapse: the working password stays.
-				$pending                           = self::pending_list();
-				$pending[ (string) $item['uuid'] ] = array(
-					'uuid' => (string) $item['uuid'],
-					'user' => (int) $user->ID,
-					'time' => time(),
-				);
-				update_option( self::PENDING_OPTION, array_slice( $pending, -5, null, true ), false );
-				if ( ! wp_next_scheduled( self::PENDING_CRON ) ) {
-					wp_schedule_single_event( time() + self::PENDING_MAX_AGE + 60, self::PENDING_CRON );
-				}
+				self::add_pending( (int) $user->ID, (string) $item['uuid'] );
 			} else {
 				// An AddSynapse that activates at once (before 22/10/2026).
 				self::claimed( (int) $user->ID, (string) $item['uuid'] );
@@ -553,7 +740,15 @@ final class RelayClaim {
 	 */
 	public static function already_connected( int $user_id ): bool {
 		$claim = get_option( self::CLAIMED_OPTION, array() );
-		if ( ! is_array( $claim ) || (int) ( $claim['user'] ?? 0 ) !== $user_id || empty( $claim['uuid'] ) || ! class_exists( '\WP_Application_Passwords' ) ) {
+		if ( ! is_array( $claim ) || (int) ( $claim['user'] ?? 0 ) !== $user_id || empty( $claim['uuid'] ) ) {
+			return false;
+		}
+		$key_id = RelayKeys::id_of( (string) $claim['uuid'] );
+		if ( '' !== $key_id ) {
+			$key = RelayKeys::get( $key_id );
+			return null !== $key && $key['user'] === $user_id;
+		}
+		if ( ! class_exists( '\WP_Application_Passwords' ) ) {
 			return false;
 		}
 		$item = \WP_Application_Passwords::get_user_application_password( $user_id, (string) $claim['uuid'] );
@@ -561,13 +756,15 @@ final class RelayClaim {
 	}
 
 	/**
-	 * AddSynapse stored and verified the new password: it is the only AddSynapse password of this user from now on (older
-	 * ones — e.g. a second «Authorize» — are revoked), and the setup wizard is marked finished on the «Claude or ChatGPT» way.
+	 * AddSynapse stored and verified the new credential: it is the only AddSynapse credential of this user from now on (older
+	 * passwords and keys — e.g. a second «Authorize», a rotation — are revoked), and the setup wizard is marked finished on
+	 * the «Claude or ChatGPT» way.
 	 *
 	 * @param int    $user_id User.
-	 * @param string $uuid    The new password's uuid (kept).
+	 * @param string $uuid    The new credential (password uuid or «key:<id>», kept).
 	 */
 	private static function claimed( int $user_id, string $uuid ): void {
+		RelayKeys::revoke_user( $user_id, RelayKeys::id_of( $uuid ) );
 		foreach ( \WP_Application_Passwords::get_user_application_passwords( $user_id ) as $other ) {
 			if ( ( $other['app_id'] ?? '' ) === RemoteAccess::APP_ID && ! empty( $other['uuid'] ) && $uuid !== $other['uuid'] ) {
 				\WP_Application_Passwords::delete_application_password( $user_id, (string) $other['uuid'] );
@@ -591,6 +788,85 @@ final class RelayClaim {
 			),
 			false
 		);
+	}
+
+	/**
+	 * Protocol 4: the administrator pressed Connect — create the connection key and hand it to AddSynapse (JSON body, server
+	 * to server, once). Anything but a pending/confirmed answer deletes the new key again.
+	 *
+	 * @param string              $state One-time state from AddSynapse.
+	 * @param array<string,mixed> $stash What start() kept.
+	 * @return string|\WP_Error
+	 */
+	public static function handle_key( string $state, array $stash ) {
+		$failed = new \WP_Error( 'addsynapse_assistant_claim', __( 'The connection to AddSynapse was not completed. Nothing was sent. Start again from your AI chat.', 'addsynapse-store-assistant' ) );
+		if ( ! is_user_logged_in() || ! current_user_can( 'manage_options' ) ) {
+			return new \WP_Error( 'addsynapse_assistant_claim_forbidden', __( 'Only an administrator of this site can connect it to AddSynapse.', 'addsynapse-store-assistant' ) );
+		}
+		$user = wp_get_current_user();
+		if ( ! preg_match( '/^[A-Za-z0-9]{40}$/D', $state ) || (int) ( $stash['user'] ?? 0 ) !== (int) $user->ID || ! RelayKeys::transport_ok() ) {
+			return $failed;
+		}
+		$who = trim( (string) ( $stash['account'] ?? '' ) . ( '' !== (string) ( $stash['email'] ?? '' ) ? ' (' . (string) $stash['email'] . ')' : '' ) );
+		if ( '' === $who ) {
+			return new \WP_Error( 'addsynapse_assistant_claim_account', __( 'AddSynapse did not confirm which account started this connection, so nothing was connected. Check that this site can reach addsynapse.com, then start again from your AI chat.', 'addsynapse-store-assistant' ) );
+		}
+		$key = RelayKeys::mint( (int) $user->ID, $who );
+
+		$response = Api::post(
+			self::PATH,
+			array(
+				'state'      => $state,
+				'site_url'   => (string) ( $stash['site_url'] ?? site_url() ),
+				'user_login' => (string) $user->user_login,
+				'key_id'     => $key['id'],
+				'key'        => $key['secret'],
+				'protocol'   => self::PROTOCOL,
+			),
+			15
+		);
+		unset( $key['secret'] );
+		if ( is_wp_error( $response ) ) {
+			RelayKeys::revoke( $key['id'] );
+			return $response;
+		}
+		$next = isset( $response['body']['next'] ) ? (string) $response['body']['next'] : '';
+		if ( 200 === $response['status'] && ! empty( $response['body']['ok'] ) ) {
+			if ( ! empty( $response['body']['pending'] ) ) {
+				self::add_pending( (int) $user->ID, $key['ref'] );
+			} else {
+				self::claimed( (int) $user->ID, $key['ref'] );
+			}
+		} else {
+			// Refused, expired or not verified: the new key is useless (the working connection, if any, stays).
+			RelayKeys::revoke( $key['id'] );
+			if ( ( 410 === $response['status'] || 422 === $response['status'] ) && self::already_connected( (int) $user->ID ) ) {
+				return self::connected_url();
+			}
+		}
+		if ( '' !== $next && Api::link_allowed( $next ) ) {
+			return $next;
+		}
+		return $failed;
+	}
+
+	/**
+	 * A credential AddSynapse holds but has not used yet (a new key, a rotation): pending until its first real use.
+	 *
+	 * @param int    $user_id User.
+	 * @param string $ref     «key:<id>» or an application password uuid.
+	 */
+	public static function add_pending( int $user_id, string $ref ): void {
+		$pending         = self::pending_list();
+		$pending[ $ref ] = array(
+			'uuid' => $ref,
+			'user' => $user_id,
+			'time' => time(),
+		);
+		update_option( self::PENDING_OPTION, array_slice( $pending, -5, null, true ), false );
+		if ( ! wp_next_scheduled( self::PENDING_CRON ) ) {
+			wp_schedule_single_event( time() + self::PENDING_MAX_AGE + 60, self::PENDING_CRON );
+		}
 	}
 
 	/**

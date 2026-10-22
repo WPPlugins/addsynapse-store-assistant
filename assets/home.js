@@ -145,6 +145,12 @@
 						if ( c.advice ) {
 							li.appendChild( el( 'div', 'adsa-advice', c.advice ) );
 						}
+						/* Where to switch it on (an admin page of this same site only). */
+						if ( c.fix_url && 0 === String( c.fix_url ).indexOf( window.location.origin + '/' ) ) {
+							var fix = el( 'a', 'button adsa-fix', c.fix_label || c.fix_url );
+							fix.href = c.fix_url;
+							li.appendChild( fix );
+						}
 						ul.appendChild( li );
 					} );
 					out.appendChild( ul );
@@ -166,8 +172,8 @@
 				if ( s.checked ) {
 					setDone( 'check', true );
 				}
-				if ( s.ready ) {
-					/* Step 2 turns green on its own only once AddSynapse confirmed (or used) the connection. */
+				if ( s.ready || s.connected ) {
+					/* Step 2 turns green on its own once the site is connected (step 3 done implies it was added). */
 					setDone( 'add', true );
 				}
 				if ( s.connected ) {
@@ -214,6 +220,16 @@
 					opt.value = o.id;
 					model.appendChild( opt );
 				} );
+			}
+		} );
+	} );
+
+	/* «Disconnect AddSynapse»: ask first. */
+	root.querySelectorAll( '[data-adsa-disconnect]' ).forEach( function ( form ) {
+		form.addEventListener( 'submit', function ( ev ) {
+			var btn = form.querySelector( '[data-confirm]' );
+			if ( btn && ! window.confirm( btn.getAttribute( 'data-confirm' ) ) ) {
+				ev.preventDefault();
 			}
 		} );
 	} );

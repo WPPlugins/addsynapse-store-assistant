@@ -6,7 +6,7 @@ Tested up to: 7.1
 Requires PHP: 7.4
 WC requires at least: 8.0
 WC tested up to: 11.1
-Stable tag: 1.3.2
+Stable tag: 1.3.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -26,12 +26,12 @@ Use it two ways — or both:
 
 Connect your site once and use it from the Claude you already pay for, on claude.ai or the Claude apps.
 
-* **No API key, no setup files.** A short wizard on **AddSynapse → Home** checks your site, then you connect it from Claude and approve the connection on WordPress' own **Authorize Application** screen.
+* **No API key, no setup files.** A short wizard on **AddSynapse → Home** checks your site, then you connect it from Claude and confirm the connection on this plugin's own page.
 * **Drafts you approve inside the chat.** Price changes, sales, stock, SEO titles and meta descriptions, coupons, page and post texts, menus, featured images: Claude prepares a draft and shows it as a card with the exact before and after values. Press **Approve** in the card and it is applied; until then nothing on your site changes.
 * **Exact Undo.** Every approved change can be undone from the card or from your AddSynapse account, restoring the previous values — and only if nothing else changed them in the meantime.
 * **All your stores in one place.** Connect several stores and sites to the same free AddSynapse account and ask Claude about any of them.
-* **A log on your own site.** Every write is listed in **Settings → Approval log**, and you can revoke the connection at any time under **Users → Profile → Application Passwords**.
-* **Locked down by design.** The connection uses a WordPress Application Password that this plugin limits to its own store routes (no users, plugins, settings or other REST routes), and every write needs a single-use approval signed at the moment you pressed Approve.
+* **A log on your own site.** Every write is listed in **Settings → Approval log**, and you can disconnect at any time with **Disconnect AddSynapse** on **AddSynapse → Home**.
+* **Locked down by design.** The connection uses a key this plugin creates when you confirm, valid only on its own store routes (no users, plugins, settings or other REST routes), and every write needs a single-use approval signed at the moment you pressed Approve. It is not a WordPress Application Password: like WooCommerce's own REST API keys, it is a separate key that only this plugin accepts, and you revoke it here.
 
 **ChatGPT (beta).** The same connection works from ChatGPT as a custom MCP connector (developer mode, depending on your ChatGPT plan); the wizard shows the steps. See the FAQ.
 
@@ -71,7 +71,7 @@ The assistant only reads data and prepares drafts. A change is applied only when
 
 **With your own key (wp-admin chat):** the chat, the tools and your data stay in WordPress. Your server calls your AI provider's API directly (api.anthropic.com or api.openai.com) with your key; the tools run on your server, during the chat request of the logged-in user and with that user's permissions.
 
-**From Claude:** Claude talks to AddSynapse, and AddSynapse calls your site's own REST routes with the Application Password you approved, only for the allowed read tools and — after you press Approve — to write exactly the approved values. The plugin has no job queue, no background polling and no remote-command endpoint.
+**From Claude:** Claude talks to AddSynapse, and AddSynapse calls your site's own REST routes with the connection key you confirmed, only for the allowed read tools and — after you press Approve — to write exactly the approved values. The plugin has no job queue, no background polling and no remote-command endpoint.
 
 AddSynapse is operated by WebOrange (Ioannis Sakkoulas).
 
@@ -79,7 +79,7 @@ AddSynapse is operated by WebOrange (Ioannis Sakkoulas).
 
 1. In WordPress go to **Plugins → Add New Plugin**, search for **AddSynapse**, find **AddSynapse Store Assistant**, click **Install Now** and **Activate**.
 2. Open **AddSynapse → Home**. The welcome wizard asks how you want to use it:
-   * **From Claude or ChatGPT:** run the connectivity check, add AddSynapse to Claude (or to ChatGPT as a custom connector, beta), then ask it to connect your site and approve the connection on WordPress' Authorize Application screen. The steps turn green on their own.
+   * **From Claude or ChatGPT:** run the connectivity check, add AddSynapse to Claude (or to ChatGPT as a custom connector, beta), then ask it to connect your site and confirm the connection on this plugin's page. The steps turn green on their own.
    * **With your own AI key:** choose Anthropic or OpenAI, paste an API key and click **Save and test**, then open **Chat**.
 3. Ask something about your store, open a draft, click **Approve** — and try **Undo**.
 
@@ -99,7 +99,7 @@ The plugin is free, and so is the wp-admin chat with your own key (you pay only 
 
 = Can Claude change my store without asking? =
 
-No. Claude can only read through the allowed tools and prepare drafts. A change is written only after you press Approve, and the write needs a single-use approval signed at that moment: even someone holding the Application Password cannot write without it.
+No. Claude can only read through the allowed tools and prepare drafts. A change is written only after you press Approve, and the write needs a single-use approval signed at that moment: even someone holding the connection key cannot write without it.
 
 = How does Undo work? =
 
@@ -119,7 +119,7 @@ Read: store name and structure, products and variations, categories, stock and s
 
 = How do I disconnect? =
 
-Revoke the "AddSynapse" Application Password under **Users → Profile → Application Passwords**. Deactivating or deleting the plugin also revokes every Application Password WordPress issued to AddSynapse on this site.
+Press **Disconnect AddSynapse** on **AddSynapse → Home**. Deactivating or deleting the plugin also revokes the AddSynapse connection key (and any Application Password WordPress issued to AddSynapse with an earlier version) on this site.
 
 = Can the wp-admin chat change many products at once? =
 
@@ -155,7 +155,7 @@ Users who can manage WooCommerce (or, without WooCommerce, edit the theme option
 
 = What is deleted when I delete the plugin? =
 
-Deleting the plugin from the Plugins screen removes its tables (conversations, change history), its settings, its scheduled tasks, unused images uploaded in the chat and your AI key, and revokes the Application Passwords issued to AddSynapse. Changes already applied to your products and pages stay. Deactivating the plugin also revokes those Application Passwords; it removes no data.
+Deleting the plugin from the Plugins screen removes its tables (conversations, change history), its settings, its scheduled tasks, unused images uploaded in the chat and your AI key, and revokes the AddSynapse connection key (and any Application Passwords issued to AddSynapse by earlier versions). Changes already applied to your products and pages stay. Deactivating the plugin also revokes them; it removes no data.
 
 = Where is the source code of the JavaScript? =
 
@@ -208,9 +208,9 @@ With an account, at most once a day and only while a user opens the plugin's own
 
 Optional: use your site from Claude or ChatGPT (beta) (AddSynapse → Home → "Use your store from Claude or ChatGPT"). The setup steps only check your own site and show links and text to copy; they send nothing to AddSynapse. The "Add to Claude" link opens app.addsynapse.com with this site's address in the link (so AddSynapse knows which site to check when you sign up), which then opens Claude's connector page; your browser opens it only when you click it.
 
-You start the connection from your AI chat. It opens WordPress' own **Authorize Application** screen; only if you press "Yes, I approve" does WordPress create an Application Password for "AddSynapse" and return it to this plugin's page on your site (never in a web address to AddSynapse). For a logged-in administrator only, that page asks AddSynapse which account started the connection (`POST https://api.addsynapse.com/api/v1/assistant/relay-claim/preview`: the one-time code and site address; answer: account name and masked email) and asks you to confirm it. Meanwhile the password is held at most 10 minutes, encrypted, in a transient, its key only in a short-lived HttpOnly cookie of your browser. Connect sends it once from your server over HTTPS (`POST https://api.addsynapse.com/api/v1/assistant/relay-claim`: password, user name, site address, one-time code) and deletes the held copy; Cancel revokes it. A password AddSynapse does not use within 15 minutes is revoked. The plugin keeps only the password's ID (WordPress keeps only its hash).
+You start the connection from your AI chat. It opens this plugin's page on your site. For a logged-in administrator only, that page asks AddSynapse which account started the connection (`POST https://api.addsynapse.com/api/v1/assistant/relay-claim/preview`: the one-time code and site address; answer: account name and masked email) and asks you to confirm it. Only if you press Connect does the plugin create a random connection key for AddSynapse, acting as you, and send it once from your server over HTTPS (`POST https://api.addsynapse.com/api/v1/assistant/relay-claim`: key, user name, site address, one-time code — never in a web address); Cancel creates nothing. The site keeps only a keyed hash of the key. A key AddSynapse does not use within 15 minutes is revoked. Sites connected with an earlier version keep their WordPress Application Password until they reconnect.
 
-That password is limited by this plugin to its own `addsynapse-assistant/v1/remote/*` routes (no users, plugins, settings, other REST routes or XML-RPC). With it, AddSynapse's servers call your site, when you ask your AI app, to read: the site or store name and structure, pages, posts, menus and media, products and variations, categories, stock and catalogue reports, sales totals and best sellers (never customer names, emails or addresses), and SEO titles and descriptions. Only after you press Approve on a draft (or Undo), and only with a single-use approval ticket that AddSynapse signs at that moment (Ed25519, valid 5 minutes, bound to this site and to the exact values), they write the approved values: titles, excerpts, content and status of pages and posts, menus, featured images, SEO titles and meta descriptions, and on WooCommerce stores prices, sale prices and stock of products and variations, and coupons. Each write is listed in Settings → Approval log. Revoke the connection at any time under Users → Profile → Application Passwords; deactivating or deleting the plugin revokes it too.
+That key works only on this plugin's own `addsynapse-assistant/v1/remote/*` routes and only over HTTPS (no users, plugins, settings, other REST routes or XML-RPC). With it, AddSynapse's servers call your site, when you ask your AI app, to read: the site or store name and structure, pages, posts, menus and media, products and variations, categories, stock and catalogue reports, sales totals and best sellers (never customer names, emails or addresses), and SEO titles and descriptions. Only after you press Approve on a draft (or Undo), and only with a single-use approval ticket that AddSynapse signs at that moment (Ed25519, valid 5 minutes, bound to this site and to the exact values), they write the approved values: titles, excerpts, content and status of pages and posts, menus, featured images, SEO titles and meta descriptions, and on WooCommerce stores prices, sale prices and stock of products and variations, and coupons. Each write is listed in Settings → Approval log. Disconnect at any time with Disconnect AddSynapse on AddSynapse → Home; deactivating or deleting the plugin revokes the key too.
 
 Before you connect, the AddSynapse setup page may check whether this plugin is active on your site by opening a public route of it (`addsynapse-assistant/v1/hello`) that answers only the plugin name, that it supports AI-app connections and whether its version is recent enough. This is a request from AddSynapse to your site; the plugin sends nothing for it.
 
@@ -225,6 +225,20 @@ Optional and off by default, separate from the account and from your AI key. The
 * AddSynapse privacy policy: https://addsynapse.com/privacy
 
 == Changelog ==
+
+= 1.3.4 =
+* New: the connection to AddSynapse no longer needs WordPress Application Passwords. You confirm it on this plugin's page, which creates its own key, valid only for this plugin's tools. Sites where Application Passwords are turned off (for example by a security plugin's default settings) can now connect.
+* New: «Disconnect AddSynapse» on Home.
+* New: for safety, a coupon above 50% off that your AI prepares is approved by a site administrator on AddSynapse → Approvals in wp-admin (with Undo there), never in the chat. The site's admin email gets a short notice when a coupon is approved from AddSynapse.
+* Improved: the connection key keeps working behind shared proxies, stops at once if its administrator loses admin rights, and a connection is refused when AddSynapse cannot confirm the account.
+* Improved: what an administrator decides on AddSynapse → Approvals (approved, discarded, undone) also shows on AddSynapse's Changes page.
+* Sites already connected keep working; reconnecting moves them to the new key.
+
+= 1.3.3 =
+* New: change your site's appearance by talking to Claude or ChatGPT — global styles (colors, fonts, spacing), Additional CSS, block templates and template parts (header, footer), theme settings and Elementor (pages and the site kit). Every change is a preview card with Approve and Undo.
+* Improved: the account confirmation step now appears inside the setup wizard instead of a separate screen.
+* Improved: after you approve the connection, you return to the setup wizard to finish.
+* Fix: the authorize screen layout — long codes wrap and no longer overflow.
 
 = 1.3.2 =
 * Fix: two connect links approved in two browser tabs before either «Connect» now both finish — the second shows «Already connected ✓» instead of «not completed».
@@ -291,6 +305,12 @@ Optional and off by default, separate from the account and from your AI key. The
 * First release on WordPress.org: chat in wp-admin, read tools, previews with Approve and Undo for prices, stock, categories, attributes, variations, product details, menus, pages, SEO, orders and coupons, CSV import, 5-day free trial without sign-up, then a free read-only plan; Subscribe from the plugin. Bulk previews show how many questions they count (10 products = 1 question). Slash commands, previews, Approve, Undo, voice input and Show me work for everyone, without a connection or subscription.
 
 == Upgrade Notice ==
+
+= 1.3.4 =
+Connect without WordPress Application Passwords, with a key only this plugin accepts. Coupons above 50% off are approved only in wp-admin. Includes 1.3.3: change your site's appearance from Claude or ChatGPT, with Approve and Undo.
+
+= 1.3.3 =
+New: change your site's appearance (styles, CSS, templates, theme settings, Elementor) from Claude or ChatGPT, with Approve and Undo. Smoother setup wizard.
 
 = 1.3.2 =
 Fixes connecting from two tabs at once and Back after connecting. Home shows your plan and today's actions, and no longer asks for a second approval.

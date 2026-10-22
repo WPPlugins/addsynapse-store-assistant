@@ -2,14 +2,15 @@
 /**
  * Remote access for AI apps (Claude, ChatGPT…) through AddSynapse — off until the site owner approves it.
  *
- * Nothing here contacts any outside service. The owner starts the connection from their AI chat, and WordPress'
- * own «Authorize Application» screen (wp-admin/authorize-application.php) issues an Application Password to the
- * AddSynapse application (fixed app_id). This class then:
+ * Nothing here contacts any outside service. The owner starts the connection from their AI chat and approves it on this
+ * plugin's own wp-admin screen, which creates an AddSynapse connection key (RelayKeys, 1.3.4 — `X-AddSynapse-Auth: Key …`,
+ * checked only in these routes' permission callback). Sites connected before 1.3.4 keep their WordPress Application
+ * Password (fixed app_id, from wp-admin/authorize-application.php). This class:
  *  - limits that password to this plugin's `addsynapse-assistant/v1/remote/*` routes (403 on every other REST
  *    route, refused over XML-RPC) — passwords created by hand (other app_id or none) are not touched;
  *  - accepts the same credentials in an `X-AddSynapse-Auth` header on these routes, for hosts that strip the
  *    standard Authorization header;
- *  - serves a fixed allow-list of read tools (abilities: store, pages/posts, menus, media, SEO) and the write tools
+ *  - serves a fixed allow-list of read tools (abilities: store, pages/posts, menus, media, SEO, site design) and the write tools
  *    (apply-price-changes, apply-changes)
  *    that write exactly the values of a change set the owner approved, check that everything still holds the
  *    expected «before» values first, and record every write in the approval log;
@@ -54,9 +55,14 @@ final class RemoteAccess {
 		ListContentAbility::NAME,
 		GetContentAbility::NAME,
 		PlanMenuAbility::NAME,
+		DesignAbilities::DESCRIBE_DESIGN,
+		DesignAbilities::DESCRIBE_BLOCKS,
+		DesignAbilities::PLAN_DESIGN,
+		DesignAbilities::PLAN_ELEMENTOR,
 		ReadStateAbility::NAME,
 		ApplyPricesAbility::NAME,
 		ApplyChangesAbility::NAME,
+		HoldChangesAbility::NAME,
 	);
 
 	/** Write abilities (owner-approved change sets only; never agent tools). */
@@ -77,6 +83,14 @@ final class RemoteAccess {
 	private static $item = null;
 
 	/**
+	 * The AddSynapse connection key of this request ({id, user}), set only inside our routes' permission callback.
+	 *
+	 * @var array{id:string,user:int}|null
+	 */
+	private static $key = null;
+
+
+	/**
 	 * Hooks.
 	 */
 	public static function register_hooks(): void {
@@ -86,6 +100,99 @@ final class RemoteAccess {
 		add_action( 'wp_authenticate_application_password_errors', array( self::class, 'no_xmlrpc' ), 10, 3 );
 		add_action( 'rest_api_init', array( self::class, 'register_routes' ) );
 		add_action( 'wp_abilities_api_init', array( self::class, 'register_abilities' ), 20 );
+		RelayKeys::register_hooks();
+		// The clean-up of unconfirmed credentials runs from WP-Cron too (RelayClaim itself loads in wp-admin only).
+		add_action( RelayClaim::PENDING_CRON, array( RelayClaim::class, 'expire_pending' ) );
+	}
+
+	/**
+	 * Permission callback of the remote routes. A request with an AddSynapse connection key (`X-AddSynapse-Auth: Key …`) is
+	 * checked here — the key's own checks (HTTPS, rate limit, constant-time hash) first, then the capability of the
+	 * administrator who approved it. Nobody is signed in here: only the route's own callback runs as that administrator
+	 * (as_key_user), so the key never reaches another route, a batch neighbour or a later filter. Without a key: WordPress'
+	 * own sign-in (an Application Password of a site connected before 1.3.4).
+	 *
+	 * @param \WP_REST_Request $request Request.
+	 * @return bool|\WP_Error
+	 */
+	public static function permit( $request ) {
+		$auth = self::key_auth( $request );
+		if ( null === $auth ) {
+			return AbilitiesRegistrar::can_manage();
+		}
+		if ( is_wp_error( $auth ) ) {
+			return $auth;
+		}
+		return user_can( $auth['user'], Config::capability() );
+	}
+
+	/**
+	 * The key check of this request (no cache: WordPress also asks the permission callback for the Allow header, and a
+	 * revoked key must fail at once).
+	 *
+	 * @param \WP_REST_Request $request Request.
+	 * @return array{id:string,user:int}|\WP_Error|null
+	 */
+	private static function key_auth( $request ) {
+		return RelayKeys::authenticate( $request );
+	}
+
+	/**
+	 * A remote route's callback, run as the key's administrator when the request came with a key (restored right after).
+	 *
+	 * @param callable $callback Callback.
+	 * @return \Closure
+	 */
+	private static function signed( callable $callback ): \Closure {
+		return static function ( $request ) use ( $callback ) {
+			return self::as_key_user( $request, $callback );
+		};
+	}
+
+	/**
+	 * Runs the callback; with a key: as its administrator, with the pending confirmation and the plan header, then back.
+	 *
+	 * @param \WP_REST_Request $request  Request.
+	 * @param callable         $callback Callback.
+	 * @return mixed
+	 */
+	public static function as_key_user( $request, callable $callback ) {
+		$auth = self::key_auth( $request );
+		if ( ! is_array( $auth ) ) {
+			return call_user_func( $callback, $request );
+		}
+		$previous = get_current_user_id();
+		wp_set_current_user( $auth['user'] );
+		self::$key    = $auth;
+		self::$scoped = false;
+		self::$item   = null;
+		try {
+			self::maybe_confirm_pending( (string) $request->get_route(), $request );
+			if ( ! RelayClaim::is_pending( self::ref() ) ) {
+				PlanInfo::capture( $request->get_header( 'x_addsynapse_plan' ) );
+			}
+			return call_user_func( $callback, $request );
+		} finally {
+			self::$key = null;
+			wp_set_current_user( $previous );
+		}
+	}
+
+	/**
+	 * The credential of this request as RelayClaim knows it: «key:<id>», an application password uuid, or ''.
+	 */
+	public static function ref(): string {
+		if ( null !== self::$key ) {
+			return RelayKeys::REF_PREFIX . self::$key['id'];
+		}
+		return is_array( self::$item ) && isset( self::$item['uuid'] ) ? (string) self::$item['uuid'] : '';
+	}
+
+	/**
+	 * Whether this request is AddSynapse's (its connection key, or its scoped application password).
+	 */
+	public static function is_addsynapse(): bool {
+		return null !== self::$key || self::$scoped;
 	}
 
 	/**
@@ -158,8 +265,8 @@ final class RemoteAccess {
 	 * @param \WP_REST_Request $request Request.
 	 */
 	private static function maybe_confirm_pending( string $route, $request ): void {
-		$uuid = is_array( self::$item ) && isset( self::$item['uuid'] ) ? (string) self::$item['uuid'] : '';
-		if ( '' === $uuid || ! RelayClaim::is_pending( $uuid ) || self::ROUTE_PREFIX . '/disconnect' === $route
+		$uuid = self::ref();
+		if ( '' === $uuid || ! RelayClaim::is_pending( $uuid ) || self::ROUTE_PREFIX . '/disconnect' === $route || self::ROUTE_PREFIX . '/rotate' === $route
 			|| ( self::ROUTE_PREFIX . '/ping' === $route && $request->get_param( 'pending' ) ) ) {
 			return;
 		}
@@ -190,6 +297,7 @@ final class RemoteAccess {
 		( new ListContentAbility() )->register();
 		( new GetContentAbility() )->register();
 		( new PlanMenuAbility() )->register();
+		( new DesignAbilities() )->register();
 		( new ReadStateAbility() )->register();
 		( new ApplyChangesAbility() )->register();
 		if ( ! Environment::has_woocommerce() ) {
@@ -197,6 +305,7 @@ final class RemoteAccess {
 		}
 		( new ListCategoriesAbility() )->register();
 		( new ApplyPricesAbility() )->register();
+		( new HoldChangesAbility() )->register();
 	}
 
 	/**
@@ -204,13 +313,14 @@ final class RemoteAccess {
 	 */
 	public static function register_routes(): void {
 		$manage = array( AbilitiesRegistrar::class, 'can_manage' );
+		$remote = array( self::class, 'permit' );
 		register_rest_route(
 			self::REST_NAMESPACE,
 			'/remote/ping',
 			array(
 				'methods'             => 'GET',
-				'callback'            => array( self::class, 'ping' ),
-				'permission_callback' => $manage,
+				'callback'            => self::signed( array( self::class, 'ping' ) ),
+				'permission_callback' => $remote,
 			)
 		);
 		register_rest_route(
@@ -218,8 +328,8 @@ final class RemoteAccess {
 			'/remote/run',
 			array(
 				'methods'             => 'POST',
-				'callback'            => array( self::class, 'run' ),
-				'permission_callback' => $manage,
+				'callback'            => self::signed( array( self::class, 'run' ) ),
+				'permission_callback' => $remote,
 				'args'                => array(
 					'ability' => array(
 						'type'     => 'string',
@@ -241,8 +351,19 @@ final class RemoteAccess {
 			'/remote/disconnect',
 			array(
 				'methods'             => 'POST',
-				'callback'            => array( self::class, 'disconnect' ),
-				'permission_callback' => $manage,
+				'callback'            => self::signed( array( self::class, 'disconnect' ) ),
+				'permission_callback' => $remote,
+			)
+		);
+		// Rotation (AddSynapse): a new connection key for the same administrator and account; the current credential keeps
+		// working until AddSynapse uses the new key once (RelayClaim pending → confirm_pending).
+		register_rest_route(
+			self::REST_NAMESPACE,
+			'/remote/rotate',
+			array(
+				'methods'             => 'POST',
+				'callback'            => self::signed( array( self::class, 'rotate' ) ),
+				'permission_callback' => $remote,
 			)
 		);
 		// Connection self-check (wp-admin «Check connectivity»): tells only whether the auth headers arrived.
@@ -307,8 +428,10 @@ final class RemoteAccess {
 					'roles'      => array_values( (array) $user->roles ),
 					'can_manage' => current_user_can( Config::capability() ),
 				),
-				'scoped'         => self::$scoped,
+				'scoped'         => self::is_addsynapse(),
+				'auth'           => null !== self::$key ? 'key' : 'application_password',
 				'password_uuid'  => is_array( $item ) && isset( $item['uuid'] ) ? (string) $item['uuid'] : null,
+				'key_id'         => null !== self::$key ? self::$key['id'] : null,
 				'site_type'      => Environment::site_type(),
 				'tools'          => self::available(),
 			)
@@ -324,7 +447,15 @@ final class RemoteAccess {
 		if ( ! function_exists( 'wp_has_ability' ) ) {
 			return self::ALLOWED;
 		}
-		return array_values( array_filter( self::ALLOWED, 'wp_has_ability' ) );
+		$elementor = \Addsynapse\StoreAssistant\Adapters\Content\ElementorAdapter::active();
+		return array_values(
+			array_filter(
+				self::ALLOWED,
+				static function ( string $name ) use ( $elementor ): bool {
+					return wp_has_ability( $name ) && ( $elementor || DesignAbilities::PLAN_ELEMENTOR !== $name );
+				}
+			)
+		);
 	}
 
 	/**
@@ -367,6 +498,12 @@ final class RemoteAccess {
 	 * @return \WP_REST_Response|\WP_Error
 	 */
 	public static function disconnect() {
+		if ( null !== self::$key ) {
+			$deleted = RelayKeys::revoke( self::$key['id'] );
+			self::forget_claim( RelayKeys::REF_PREFIX . self::$key['id'] );
+			PlanInfo::forget();
+			return rest_ensure_response( array( 'deleted' => $deleted ) );
+		}
 		if ( ! self::$scoped || empty( self::$item['uuid'] ) ) {
 			return new \WP_Error( 'addsynapse_assistant_not_remote', 'Only the AddSynapse application can disconnect itself.', array( 'status' => 400 ) );
 		}
@@ -376,14 +513,60 @@ final class RemoteAccess {
 	}
 
 	/**
-	 * Revokes EVERY AddSynapse application password (matched by our fixed app_id — never by name; passwords the
-	 * owner created for other apps stay) of every user of this site, and forgets the connection state (setup check,
-	 * used ticket nonces). Runs on deactivation; uninstall.php does the same without loading this class.
+	 * The confirmed connection was this credential: forget it (the wizard then offers to connect again).
+	 *
+	 * @param string $ref Credential reference.
+	 */
+	private static function forget_claim( string $ref ): void {
+		$claim = get_option( RelayClaim::CLAIMED_OPTION, array() );
+		if ( is_array( $claim ) && hash_equals( (string) ( $claim['uuid'] ?? '' ), $ref ) ) {
+			delete_option( RelayClaim::CLAIMED_OPTION );
+		}
+	}
+
+	/**
+	 * A new connection key for the administrator and AddSynapse account of this request's credential (also moves a site
+	 * connected with an Application Password to a key). The new key is pending: the current credential keeps working until
+	 * AddSynapse uses the new one once; then the old one is revoked. The secret is in this response only (HTTPS, never stored).
+	 *
+	 * @return \WP_REST_Response|\WP_Error
+	 */
+	public static function rotate() {
+		$ref = self::ref();
+		if ( ! self::is_addsynapse() || '' === $ref ) {
+			return new \WP_Error( 'addsynapse_assistant_not_remote', 'Only the AddSynapse application can rotate its key.', array( 'status' => 400 ) );
+		}
+		if ( ! RelayKeys::transport_ok() ) {
+			return new \WP_Error( 'addsynapse_assistant_key_https', 'The AddSynapse connection key only works over HTTPS.', array( 'status' => 403 ) );
+		}
+		if ( RelayClaim::is_pending( $ref ) ) {
+			return new \WP_Error( 'addsynapse_assistant_key_pending', 'This connection is not confirmed yet.', array( 'status' => 409 ) );
+		}
+		$user    = get_current_user_id();
+		$current = null !== self::$key ? RelayKeys::get( self::$key['id'] ) : null;
+		$new     = RelayKeys::mint( $user, null !== $current ? $current['account'] : '' );
+		RelayClaim::add_pending( $user, $new['ref'] );
+		$response = rest_ensure_response(
+			array(
+				'key_id'   => $new['id'],
+				'key'      => $new['secret'],
+				'protocol' => RelayClaim::PROTOCOL,
+			)
+		);
+		$response->header( 'Cache-Control', 'no-store, private' );
+		return $response;
+	}
+
+	/**
+	 * Revokes EVERY AddSynapse connection key and application password (matched by our fixed app_id — never by name;
+	 * passwords the owner created for other apps stay) of every user of this site, and forgets the connection state (setup
+	 * check, used ticket nonces). Runs on deactivation and «Disconnect AddSynapse»; uninstall.php does the same without
+	 * loading this class.
 	 *
 	 * Multisite: application passwords belong to the user (network-wide); this revokes them for the users of the
 	 * current site only — the site where the plugin is being deactivated. The approval log stays until uninstall.
 	 *
-	 * @return int Passwords revoked.
+	 * @return int Credentials revoked.
 	 */
 	public static function revoke_all(): int {
 		global $wpdb;
@@ -405,6 +588,7 @@ final class RemoteAccess {
 				}
 			}
 		}
+		$revoked += RelayKeys::revoke_all();
 		delete_option( SetupStatus::CHECK_OPTION );
 		delete_option( RelayClaim::CLAIMED_OPTION );
 		delete_option( RelayClaim::PENDING_OPTION );
@@ -428,6 +612,8 @@ final class RemoteAccess {
 			'plugin'         => 'store-assistant',
 			'relay'          => true,
 			'min_version_ok' => true,
+			// 4 (1.3.4): AddSynapse may connect with this plugin's own connection key (no Application Password needed).
+			'protocol'       => RelayClaim::PROTOCOL,
 		);
 		if ( current_user_can( Config::capability() ) ) {
 			$data['version'] = ADDSYNAPSE_ASSISTANT_VERSION;

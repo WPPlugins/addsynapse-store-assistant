@@ -98,6 +98,8 @@ final class Plugin {
 			$list[] = AddsynapseMenu::class;
 			// WordPress «Authorize Application» → back here → the password handed to AddSynapse server-to-server, never in a URL to it.
 			$list[] = \Addsynapse\StoreAssistant\Remote\RelayClaim::class;
+			// AddSynapse → Approvals: drafts AddSynapse may not apply by itself (a coupon above 50 % off), approved by an administrator.
+			$list[] = \Addsynapse\StoreAssistant\Remote\AdminApprovals::class;
 			$list[] = new \Addsynapse\StoreAssistant\Admin\HomePage();
 			$list[] = new AdminPage();
 			$list[] = new SettingsPage();

@@ -30,7 +30,7 @@ final class ReadStateAbility {
 			self::NAME,
 			array(
 				'label'               => __( 'Current values for a change set', 'addsynapse-store-assistant' ),
-				'description'         => 'Returns the current price/stock fields of products or variations, the SEO title and meta description (active SEO plugin) of products, pages or posts, coupons (by id or code), the title/excerpt/content/status and featured image of pages and posts, and navigation menus. Read-only.',
+				'description'         => 'Returns the current price/stock fields of products or variations, the SEO title and meta description (active SEO plugin) of products, pages or posts, coupons (by id or code), the title/excerpt/content/status and featured image of pages and posts, navigation menus, and the look of the site (styles, Additional CSS, theme settings, widgets, templates, Elementor). Read-only.',
 				'category'            => AbilitiesRegistrar::CATEGORY,
 				'input_schema'        => array(
 					'type'                 => 'object',
@@ -57,6 +57,10 @@ final class ReadStateAbility {
 									'code'   => array(
 										'type'      => 'string',
 										'maxLength' => 100,
+									),
+									'key'    => array(
+										'type'      => 'string',
+										'maxLength' => 300,
 									),
 									'expect' => array(
 										'type' => 'object',

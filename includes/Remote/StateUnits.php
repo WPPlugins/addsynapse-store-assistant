@@ -9,6 +9,9 @@
  *  - featured: the featured image of a page, post or other post type (attachment id or none),
  *  - menu:    a whole navigation menu (classic menu or block Navigation) as a snapshot — written by its menu adapter only
  *             when the menu still matches the expected snapshot (Undo restores the previous tree).
+ *  - styles / css / setting / widgets / doc / kit: the site's look (Design\DesignUnits — site styles, Additional CSS, theme
+ *             settings, widgets, pages / templates / template parts / Elementor documents, Elementor Site Settings), identified
+ *             by a string `key` the site resolves itself.
  * product and coupon need WooCommerce; on a plain WordPress site they read as «not found».
  *
  * Reads return normalized values; writes take the same shape, so a change set is just expect(BEFORE)/set(AFTER).
@@ -20,6 +23,7 @@ namespace Addsynapse\StoreAssistant\Remote;
 
 use Addsynapse\StoreAssistant\Adapters\Menu\MenuAdapters;
 use Addsynapse\StoreAssistant\Adapters\Seo\SeoAdapters;
+use Addsynapse\StoreAssistant\Design\DesignUnits;
 use Addsynapse\StoreAssistant\Environment;
 use Addsynapse\StoreAssistant\Menus\MenuTree;
 use Addsynapse\StoreAssistant\Changesets\ProductFields;
@@ -32,7 +36,7 @@ defined( 'ABSPATH' ) || exit;
  */
 final class StateUnits {
 
-	public const KINDS = array( 'product', 'seo', 'coupon', 'content', 'featured', 'menu' );
+	public const KINDS = array( 'product', 'seo', 'coupon', 'content', 'featured', 'menu', 'styles', 'css', 'setting', 'widgets', 'doc', 'kit' );
 
 	/** Content fields the remote route may change. */
 	public const CONTENT_FIELDS = array( 'title', 'excerpt', 'content', 'status' );
@@ -78,6 +82,9 @@ final class StateUnits {
 	public static function read( array $item ): array {
 		$kind = (string) ( $item['kind'] ?? '' );
 		$id   = (int) ( $item['id'] ?? 0 );
+		if ( DesignUnits::handles( $kind ) ) {
+			return DesignUnits::read( $kind, (string) ( $item['key'] ?? '' ) );
+		}
 		if ( in_array( $kind, array( 'product', 'coupon' ), true ) && ! Environment::has_woocommerce() ) {
 			return self::missing( $kind, $id, 'WooCommerce is not active on this site.' );
 		}
@@ -186,6 +193,9 @@ final class StateUnits {
 	 * @param array<string,mixed> $expect Expected values.
 	 */
 	public static function holds( string $kind, array $now, array $expect ): bool {
+		if ( DesignUnits::handles( $kind ) ) {
+			return DesignUnits::holds( $kind, $now, $expect );
+		}
 		if ( 'menu' === $kind ) {
 			$a = is_array( $now['menu'] ?? null ) ? $now['menu'] : array();
 			$b = is_array( $expect['menu'] ?? null ) ? $expect['menu'] : array();
@@ -541,6 +551,9 @@ final class StateUnits {
 	public static function for_log( string $kind, $values ) {
 		if ( ! is_array( $values ) ) {
 			return $values;
+		}
+		if ( DesignUnits::handles( $kind ) ) {
+			return DesignUnits::for_log( $kind, $values );
 		}
 		if ( 'menu' === $kind ) {
 			return array( 'items' => isset( $values['menu']['items'] ) ? count( (array) $values['menu']['items'] ) : 0 );

@@ -454,4 +454,45 @@ class ElementorAdapter implements ContentAdapterInterface {
 			'excerpt' => $excerpt,
 		);
 	}
+
+	/**
+	 * Stores the exact Elementor JSON of a page (approved design change / its Undo) and refreshes Elementor's caches.
+	 *
+	 * @param int    $post_id Post id.
+	 * @param string $raw     JSON.
+	 * @throws \RuntimeException When the JSON is invalid or WordPress did not store it exactly.
+	 */
+	public function write( int $post_id, string $raw ): void {
+		if ( null === json_decode( $raw ) ) {
+			throw new \RuntimeException( 'Refusing to store invalid Elementor JSON.' );
+		}
+		if ( $this->raw( $post_id ) !== $raw ) {
+			// update_post_meta() unslashes: slash the exact bytes first.
+			if ( false === update_post_meta( $post_id, self::META, wp_slash( $raw ) ) ) {
+				throw new \RuntimeException( 'The page data could not be saved.' );
+			}
+		}
+		if ( $this->raw( $post_id ) !== $raw ) {
+			throw new \RuntimeException( 'The page data was changed while saving.' );
+		}
+		self::refresh_caches( $post_id );
+	}
+
+	/**
+	 * Drops this post's rendered-element cache and regenerates its CSS file.
+	 *
+	 * @param int $post_id Post id.
+	 */
+	public static function refresh_caches( int $post_id ): void {
+		delete_post_meta( $post_id, '_elementor_element_cache' );
+		clean_post_cache( $post_id );
+		if ( class_exists( '\Elementor\Core\Files\CSS\Post' ) ) {
+			try {
+				\Elementor\Core\Files\CSS\Post::create( $post_id )->update();
+			} catch ( \Throwable $e ) {
+				unset( $e );
+				// The CSS is rebuilt on the next page view anyway.
+			}
+		}
+	}
 }

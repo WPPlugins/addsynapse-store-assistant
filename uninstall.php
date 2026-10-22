@@ -93,6 +93,12 @@ function addsynapse_assistant_uninstall_site() {
 		'addsynapse_assistant_relay_pending',
 		// 1.3.2: the plan and today's count AddSynapse reported (no personal data).
 		'addsynapse_assistant_relay_plan',
+		// 1.3.4: the AddSynapse connection keys (hashes only) and the per-site secret of those hashes.
+		'addsynapse_assistant_relay_keys',
+		'addsynapse_assistant_relay_key_pepper',
+		// 1.3.4: drafts waiting on the wp-admin approval page (coupons above 50 % off), and when each key was last used.
+		'addsynapse_assistant_admin_approvals',
+		'addsynapse_assistant_relay_keys_used',
 	);
 	foreach ( $options as $option ) {
 		delete_option( $option );
