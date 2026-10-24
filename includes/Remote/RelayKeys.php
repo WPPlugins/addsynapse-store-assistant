@@ -85,9 +85,24 @@ final class RelayKeys {
 
 	/**
 	 * Whether keys may be created/used here: HTTPS, or a `local` development environment (same rule as Application Passwords).
+	 * 1.3.5: HTTPS also when PHP sits behind a TLS-terminating proxy that does not set $_SERVER['HTTPS'] (Varnish/nginx on
+	 * CloudPanel): the site's own address is https://, or a proxy on this same machine says so (X-Forwarded-Proto /
+	 * X-Forwarded-Ssl, trusted only from a loopback address).
 	 */
 	public static function transport_ok(): bool {
-		return is_ssl() || ( function_exists( 'wp_get_environment_type' ) && 'local' === wp_get_environment_type() );
+		if ( is_ssl() || ( function_exists( 'wp_get_environment_type' ) && 'local' === wp_get_environment_type() ) ) {
+			return true;
+		}
+		if ( 'https' === strtolower( (string) wp_parse_url( home_url(), PHP_URL_SCHEME ) ) ) {
+			return true;
+		}
+		$remote = isset( $_SERVER['REMOTE_ADDR'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REMOTE_ADDR'] ) ) : '';
+		if ( ! in_array( $remote, array( '127.0.0.1', '::1' ), true ) ) {
+			return false;
+		}
+		$proto = isset( $_SERVER['HTTP_X_FORWARDED_PROTO'] ) ? strtolower( sanitize_text_field( wp_unslash( $_SERVER['HTTP_X_FORWARDED_PROTO'] ) ) ) : '';
+		$ssl   = isset( $_SERVER['HTTP_X_FORWARDED_SSL'] ) ? strtolower( sanitize_text_field( wp_unslash( $_SERVER['HTTP_X_FORWARDED_SSL'] ) ) ) : '';
+		return 'https' === $proto || 'on' === $ssl;
 	}
 
 	/**

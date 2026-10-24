@@ -165,14 +165,16 @@ final class SetupStatus {
 		}//end if
 		$check = get_option( self::CHECK_OPTION, array() );
 		return array(
-			'checked'   => is_array( $check ) && ! empty( $check['ok'] ),
-			'connected' => null !== $found,
-			'used'      => null !== $found && null !== $found['last_used'],
+			'checked'      => is_array( $check ) && ! empty( $check['ok'] ),
+			// A real check ran and failed (the only case step 1 may stay open on a connected site).
+			'check_failed' => is_array( $check ) && array_key_exists( 'ok', $check ) && empty( $check['ok'] ),
+			'connected'    => null !== $found,
+			'used'         => null !== $found && null !== $found['last_used'],
 			// Connected for sure: AddSynapse confirmed this password (claim) or already used it. The wizard then shows every step done.
-			'claimed'   => $claimed,
-			'ready'     => null !== $found && ( $claimed || null !== $found['last_used'] ),
-			'detail'    => $found,
-			'log_count' => count( ApprovalLog::all() ),
+			'claimed'      => $claimed,
+			'ready'        => null !== $found && ( $claimed || null !== $found['last_used'] ),
+			'detail'       => $found,
+			'log_count'    => count( ApprovalLog::all() ),
 		);
 	}
 }

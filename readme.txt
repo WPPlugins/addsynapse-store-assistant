@@ -6,7 +6,7 @@ Tested up to: 7.1
 Requires PHP: 7.4
 WC requires at least: 8.0
 WC tested up to: 11.1
-Stable tag: 1.3.4
+Stable tag: 1.3.5
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -171,7 +171,7 @@ The readable source of the admin app is in the `src/` folder of the plugin, with
 
 == External services ==
 
-The plugin uses external services only for the features you turn on. Slash commands, previews, Approve and Undo in wp-admin run on your site and need no service. **Before an administrator saves an AI key (section 1 or 2), starts the Claude connection (section 5), creates an account (section 4) or allows anonymous usage info (section 6), the plugin makes no outgoing requests** and schedules no recurring background tasks (only local one-off work you start yourself: applying a large approved change, or removing an image you uploaded in the chat and never used). The connectivity check of the wizard is a request from your site to itself. The links to the Store Assistant Pro page on addsynapse.com and to the plugin's reviews on WordPress.org are ordinary links your browser opens when you click them.
+The plugin uses external services only for the features you turn on. Slash commands, previews, Approve and Undo in wp-admin run on your site and need no service. **Before an administrator saves an AI key (section 1 or 2), starts the Claude connection (section 5), creates an account (section 4) or allows anonymous usage info (section 6), the plugin makes no outgoing requests** (except the section 5 setup question) and schedules no recurring background tasks (only local one-off work you start yourself: applying a large approved change, or removing an image you uploaded in the chat and never used). The connectivity check of the wizard is a request from your site to itself. The links to the Store Assistant Pro page on addsynapse.com and to the plugin's reviews on WordPress.org are ordinary links your browser opens when you click them.
 
 = 1. Anthropic API — api.anthropic.com (only with your own Anthropic key) =
 
@@ -204,9 +204,9 @@ With an account, at most once a day and only while a user opens the plugin's own
 * AddSynapse terms of service: https://addsynapse.com/terms
 * AddSynapse privacy policy: https://addsynapse.com/privacy
 
-= 5. AddSynapse for Claude and other AI apps — addsynapse.com (only after you approve the connection) =
+= 5. AddSynapse for Claude and other AI apps — addsynapse.com (after you approve the connection; one setup question before) =
 
-Optional: use your site from Claude or ChatGPT (beta) (AddSynapse → Home → "Use your store from Claude or ChatGPT"). The setup steps only check your own site and show links and text to copy; they send nothing to AddSynapse. The "Add to Claude" link opens app.addsynapse.com with this site's address in the link (so AddSynapse knows which site to check when you sign up), which then opens Claude's connector page; your browser opens it only when you click it.
+Optional: use your site from Claude or ChatGPT. "Connect to AddSynapse" opens app.addsynapse.com with this site's address in the link. While nothing is set up, for an administrator (after activation or on the setup screen, at most every 10 minutes), the plugin asks whether you started in Claude: `GET https://api.addsynapse.com/api/onboarding/pending?site=<site address>` (site address only). If yes, the browser continues there; nothing connects without Yes, connect.
 
 You start the connection from your AI chat. It opens this plugin's page on your site. For a logged-in administrator only, that page asks AddSynapse which account started the connection (`POST https://api.addsynapse.com/api/v1/assistant/relay-claim/preview`: the one-time code and site address; answer: account name and masked email) and asks you to confirm it. Only if you press Connect does the plugin create a random connection key for AddSynapse, acting as you, and send it once from your server over HTTPS (`POST https://api.addsynapse.com/api/v1/assistant/relay-claim`: key, user name, site address, one-time code — never in a web address); Cancel creates nothing. The site keeps only a keyed hash of the key. A key AddSynapse does not use within 15 minutes is revoked. Sites connected with an earlier version keep their WordPress Application Password until they reconnect.
 
@@ -225,6 +225,12 @@ Optional and off by default, separate from the account and from your AI key. The
 * AddSynapse privacy policy: https://addsynapse.com/privacy
 
 == Changelog ==
+
+= 1.3.5 =
+* Improved: simpler setup. Step 2 is one «Connect to AddSynapse» button that links this site to your AddSynapse account; adding AddSynapse to Claude or ChatGPT moves to step 3, shown after the site is connected.
+* Improved: started in Claude? Right after activation the plugin asks AddSynapse once (site address only, see External services) and goes straight to «Connect <site> to your AddSynapse account? Yes, connect», then «Done — go back to Claude». «Other options» keeps both ways one click away.
+* Improved: setup has two steps (the connection check runs by itself) and Home opens with «You're all set!»: open Claude and three requests to try.
+* Fixed: sites behind an HTTPS proxy (PHP sees plain HTTP) can connect; a failed request to AddSynapse now says what failed.
 
 = 1.3.4 =
 * New: the connection to AddSynapse no longer needs WordPress Application Passwords. You confirm it on this plugin's page, which creates its own key, valid only for this plugin's tools. Sites where Application Passwords are turned off (for example by a security plugin's default settings) can now connect.
@@ -305,6 +311,9 @@ Optional and off by default, separate from the account and from your AI key. The
 * First release on WordPress.org: chat in wp-admin, read tools, previews with Approve and Undo for prices, stock, categories, attributes, variations, product details, menus, pages, SEO, orders and coupons, CSV import, 5-day free trial without sign-up, then a free read-only plan; Subscribe from the plugin. Bulk previews show how many questions they count (10 products = 1 question). Slash commands, previews, Approve, Undo, voice input and Show me work for everyone, without a connection or subscription.
 
 == Upgrade Notice ==
+
+= 1.3.5 =
+Simpler setup: one «Connect to AddSynapse» button links the site to your account; started in Claude, you land right on «Yes, connect».
 
 = 1.3.4 =
 Connect without WordPress Application Passwords, with a key only this plugin accepts. Coupons above 50% off are approved only in wp-admin. Includes 1.3.3: change your site's appearance from Claude or ChatGPT, with Approve and Undo.

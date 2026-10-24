@@ -3,7 +3,7 @@
  * Plugin Name:       AddSynapse – AI Website & Store Assistant for WooCommerce
  * Plugin URI:        https://addsynapse.com/store-assistant
  * Description:       Admin chat where shop managers ask, in their own language, about their store and for changes to one product at a time — with your own Anthropic or OpenAI API key. Every change is a preview a person approves, with Undo.
- * Version:           1.3.4
+ * Version:           1.3.5
  * Requires at least: 6.9
  * Requires PHP:      7.4
  * Author:            AddSynapse
@@ -19,7 +19,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'ADDSYNAPSE_ASSISTANT_VERSION', '1.3.4' );
+define( 'ADDSYNAPSE_ASSISTANT_VERSION', '1.3.5' );
 define( 'ADDSYNAPSE_ASSISTANT_PLUGIN_FILE', __FILE__ );
 define( 'ADDSYNAPSE_ASSISTANT_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'ADDSYNAPSE_ASSISTANT_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
@@ -54,6 +54,8 @@ spl_autoload_register(
 );
 
 register_activation_hook( __FILE__, array( \Addsynapse\StoreAssistant\Install\Schema::class, 'install' ) );
+// 1.3.5: remember the activation for one minute (continues a connection started in Claude, HomePage::maybe_start_from_claude).
+register_activation_hook( __FILE__, array( \Addsynapse\StoreAssistant\Admin\HomePage::class, 'activated' ) );
 register_deactivation_hook( __FILE__, array( \Addsynapse\StoreAssistant\Install\Lifecycle::class, 'deactivate' ) );
 
 // Declare HPOS (custom order tables) compatibility — the hook only fires when WooCommerce loads,

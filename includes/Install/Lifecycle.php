@@ -56,6 +56,8 @@ final class Lifecycle {
 		self::unschedule_all();
 		Usage::deactivate();
 		RemoteAccess::revoke_all();
+		// 1.3.5: a later activation asks AddSynapse afresh («did you start in Claude?»).
+		\Addsynapse\StoreAssistant\Account\PendingOnboarding::reset();
 	}
 
 	/**

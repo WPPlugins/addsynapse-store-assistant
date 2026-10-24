@@ -312,3 +312,31 @@
 .adsa-checks .adsa-fix { margin-top: 6px; }
 .adsa-apppw { margin: 12px 0 16px; }
 .adsa-apppw .adsa-buttons { margin-bottom: 4px; }
+
+/* 1.3.5: step 2 = one «Connect to AddSynapse» button; step 3 collapsed. */
+.adsa-connect__sub { margin: -4px 0 8px; }
+.adsa-addai { margin-top: 8px; }
+
+/* 1.3.5: «Done — go back to Claude» (from Claude, right after «Yes, connect»). */
+.adsa-done { max-width: 720px; margin: 24px 0; padding: 32px; background: #fff; border: 1px solid #b8e6bf; border-radius: 12px; box-shadow: 0 6px 20px rgba(0, 0, 0, .05); }
+.adsa-done__icon { display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 48px; border-radius: 50%; background: var(--adsa-ok); color: #fff; }
+.adsa-done__icon .adsa-icon { display: block; width: 26px; height: 26px; }
+.adsa-done__title { margin: 16px 0 8px; font-size: 24px; line-height: 1.3; }
+.adsa-done__lead { margin: 0 0 12px; font-size: 15px; }
+.adsa-done__links { margin: 16px 0 0; }
+@media (max-width: 600px) { .adsa-done { padding: 20px; } .adsa-done__title { font-size: 20px; } }
+
+/* 1.3.5: «You're all set!» (Home) and «Done — go back to Claude». */
+.adsa-allset { margin: 20px 0 24px; padding: 28px 32px; background: #fff; border: 1px solid #b8e6bf; border-left: 4px solid var(--adsa-ok); border-radius: 12px; box-shadow: 0 6px 20px rgba(0, 0, 0, .05); max-width: 860px; }
+.adsa-allset__head { display: flex; align-items: center; gap: 14px; }
+.adsa-allset__title { margin: 0; font-size: 26px; line-height: 1.25; }
+.adsa-allset__lead { margin: 12px 0 0; font-size: 15px; }
+.adsa-allset__try { margin: 18px 0 8px; font-size: 15px; }
+.adsa-allset__prompts { margin: 0; padding: 0; list-style: none; }
+.adsa-allset__prompts li { margin: 0 0 8px; }
+.adsa-allset__open { margin: 18px 0 8px; display: flex; align-items: center; flex-wrap: wrap; gap: 16px; }
+.adsa-allset__hide { margin: 8px 0 0; text-align: right; }
+.adsa-allset-collapsed { max-width: 860px; }
+.adsa-allset-collapsed .adsa-allset { box-shadow: none; margin: 12px 0 0; }
+.adsa-recheck { margin: 8px 0 0; }
+@media (max-width: 600px) { .adsa-allset { padding: 20px 16px; } .adsa-allset__title { font-size: 21px; } }

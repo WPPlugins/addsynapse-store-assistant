@@ -85,7 +85,7 @@
 		p.classList.toggle( 'is-waiting', ! ok );
 	}
 
-	/* «Mark» actions: «I've added it» (step 2), «It worked» (step 4) — explicit buttons only. */
+	/* «Mark» actions: «I've added it» (step 3) — explicit buttons only. */
 	root.querySelectorAll( '[data-mark]' ).forEach( function ( n ) {
 		n.addEventListener( 'click', function () {
 			var name = n.getAttribute( 'data-mark' );
@@ -131,7 +131,7 @@
 	/* Step 1: connectivity self-check (a loopback request of this site to itself). */
 	var checkBtn = root.querySelector( '.adsa-check' );
 	if ( checkBtn && apiFetch ) {
-		checkBtn.addEventListener( 'click', function () {
+		var runCheck = function () {
 			var out = root.querySelector( '.adsa-check-result' );
 			out.textContent = t.checking || '…';
 			checkBtn.disabled = true;
@@ -162,10 +162,15 @@
 				.then( function () {
 					checkBtn.disabled = false;
 				} );
-		} );
+		};
+		checkBtn.addEventListener( 'click', runCheck );
+		/* 1.3.5: the check runs by itself when the page opens; «Re-check» runs it again. */
+		if ( root.querySelector( '[data-adsa-autocheck]' ) ) {
+			runCheck();
+		}
 	}
 
-	/* Steps 3–4: poll this site's own state (an approved AddSynapse application password, its first use). */
+	/* Steps 2–3: poll this site's own state (an approved AddSynapse key, its first use). */
 	function poll() {
 		apiFetch( { path: cfg.status } )
 			.then( function ( s ) {
@@ -173,17 +178,24 @@
 					setDone( 'check', true );
 				}
 				if ( s.ready || s.connected ) {
-					/* Step 2 turns green on its own once the site is connected (step 3 done implies it was added). */
-					setDone( 'add', true );
+					/* 1.3.5: step 3 («Use it from Claude or ChatGPT») shows once the site is connected. */
+					root.querySelectorAll( '[data-adsa-after-connect]' ).forEach( function ( n ) {
+						n.hidden = false;
+					} );
+					root.querySelectorAll( '[data-adsa-before-connect]' ).forEach( function ( n ) {
+						n.hidden = true;
+					} );
 				}
 				if ( s.connected ) {
 					setDone( 'connect', true );
 					state( 'connect', ( t.approved || '%s' ).replace( '%s', s.detail.user ), true );
 				}
-				if ( s.ready ) {
+				/* A connected site passed what step 1 checks, unless a real check failed. */
+				if ( s.ready || ( s.connected && ! s.check_failed ) ) {
 					setDone( 'check', true );
 				}
 				if ( s.used || s.ready ) {
+					setDone( 'add', true );
 					setDone( 'confirm', true );
 					state( 'confirm', s.used ? t.read : ( t.checked || t.read ), true );
 					return;

@@ -12,7 +12,9 @@ use WP_Error;
 defined( 'ABSPATH' ) || exit;
 
 /**
- * Four calls exist, and nothing else ever contacts AddSynapse:
+ * These calls exist, and nothing else ever contacts AddSynapse:
+ *  - PendingOnboarding::from_claude(): `GET /api/onboarding/pending?site=<home URL>` — only for an administrator while
+ *    nothing is set up (after activation / the first setup screen), at most once per 10 minutes, the site address only;
  *  - OptIn::handle_create(): `POST /api/v1/assistant/optin` — only when an administrator clicks «Create account»;
  *  - Announcements::maybe_fetch(): `POST /api/v1/assistant/announcements` — at most once a day, only after that, only while
  *    a user opens one of the plugin's own screens.
@@ -129,6 +131,15 @@ final class Api {
 	}
 
 	/**
+	 * Whether a failed request surely never reached the server (no name lookup / no connection).
+	 *
+	 * @param WP_Error $error wp_remote_post() error.
+	 */
+	private static function not_sent( WP_Error $error ): bool {
+		return (bool) preg_match( '/cURL error (6|7):|Could not resolve|Failed to connect|Connection refused/i', $error->get_error_message() );
+	}
+
+	/**
 	 * POST JSON.
 	 *
 	 * @param string              $path    API path (`/api/v1/…`).
@@ -141,20 +152,28 @@ final class Api {
 		if ( '' === $base ) {
 			return new WP_Error( 'addsynapse_assistant_api_url', 'The AddSynapse address is not allowed on this site.' );
 		}
-		$response = wp_remote_post(
-			$base . $path,
-			array(
-				'timeout'     => $timeout,
-				'redirection' => 0,
-				'headers'     => array(
-					'Content-Type' => 'application/json',
-					'Accept'       => 'application/json',
-				),
-				'body'        => (string) wp_json_encode( $body ),
-			)
+		$args     = array(
+			'timeout'     => $timeout,
+			'redirection' => 0,
+			'headers'     => array(
+				'Content-Type' => 'application/json',
+				'Accept'       => 'application/json',
+			),
+			'body'        => (string) wp_json_encode( $body ),
 		);
+		$response = wp_remote_post( $base . $path, $args );
+		// 1.3.5 (satest 24/10: a connect POST failed on this server and never reached AddSynapse): one retry, only when
+		// the request surely never left (name lookup / connect failed) — a request that may have arrived is never sent twice.
+		if ( is_wp_error( $response ) && self::not_sent( $response ) ) {
+			$response = wp_remote_post( $base . $path, $args );
+		}
 		if ( is_wp_error( $response ) ) {
-			return new WP_Error( 'addsynapse_assistant_api_unreachable', 'AddSynapse could not be reached. Try again in a few minutes.' );
+			$detail = sanitize_text_field( mb_substr( $response->get_error_message(), 0, 160 ) );
+			return new WP_Error(
+				'addsynapse_assistant_api_unreachable',
+				/* translators: %s: technical detail from WordPress, e.g. «cURL error 28: Operation timed out». */
+				sprintf( __( 'This site could not reach AddSynapse (%s). Nothing was connected. Try again in a minute; if it keeps failing, ask your host whether outgoing HTTPS requests to api.addsynapse.com are allowed.', 'addsynapse-store-assistant' ), '' !== $detail ? $detail : 'no detail' )
+			);
 		}
 		$decoded = json_decode( (string) wp_remote_retrieve_body( $response ), true );
 		return array(

@@ -436,8 +436,8 @@ final class RelayClaim {
 	}
 
 	/**
-	 * «Last step: confirm the account» — step 3 of the wizard, with the AddSynapse account (name + masked email) and
-	 * Connect / Cancel (POST, nonce). Same security as before: nothing is sent to AddSynapse until Connect.
+	 * «Connect <host> to your AddSynapse account» — step 2 of the wizard, with the AddSynapse account (name + masked email) and
+	 * «Yes, connect» / Cancel (POST, nonce). Same security as before: nothing is sent to AddSynapse until Connect.
 	 */
 	public static function render_confirm_card(): void {
 		if ( null === self::$confirm ) {
@@ -449,12 +449,18 @@ final class RelayClaim {
 		$email   = trim( (string) ( $stash['email'] ?? '' ) );
 		$who     = trim( $account . ( '' !== $email ? ' (' . $email . ')' : '' ) );
 		echo '<li class="adsa-step is-current adsa-relayconfirm" id="adsa-step-connect" data-step="connect" data-adsa-relay-confirm>';
-		echo '<div class="adsa-step__head"><span class="adsa-step__num" aria-hidden="true"><span class="adsa-step__n">3</span></span>';
-		echo '<h2 class="adsa-step__title">' . esc_html__( 'Last step: confirm the account', 'addsynapse-store-assistant' ) . '</h2></div>';
+		echo '<div class="adsa-step__head"><span class="adsa-step__num" aria-hidden="true"><span class="adsa-step__n">2</span></span>';
+		// The whole site address, with its folder (owner 24/10: «demo.addsynapse.com/satest», not just the host).
+		$host = untrailingslashit( (string) preg_replace( '#^https?://#i', '', home_url() ) );
+		/* translators: %s: this site's host name, e.g. shop.example.com */
+		echo '<h2 class="adsa-step__title">' . esc_html( sprintf( __( 'Connect %s to your AddSynapse account', 'addsynapse-store-assistant' ), $host ) ) . '</h2></div>';
 		echo '<div class="adsa-step__body">';
-		echo '<p>' . ( 'key' === ( $stash['mode'] ?? '' )
-			? esc_html__( 'AddSynapse asks to connect this site. Connect it to this AddSynapse account?', 'addsynapse-store-assistant' )
-			: esc_html__( 'WordPress approved the connection. Connect this site to this AddSynapse account?', 'addsynapse-store-assistant' ) ) . '</p>';
+		// 1.3.5 (owner 24/10): plain words — what happens, whose account, nothing changes until approved.
+		echo '<p class="adsa-relayconfirm__lead">' . esc_html(
+			'site' === \Addsynapse\StoreAssistant\Environment::site_type()
+				? __( 'You\'re connecting this site to the AddSynapse account below. Claude (or ChatGPT) can then read your site and prepare changes — nothing changes until you approve it.', 'addsynapse-store-assistant' )
+				: __( 'You\'re connecting this site to the AddSynapse account below. Claude (or ChatGPT) can then read your store and prepare changes — nothing changes until you approve it.', 'addsynapse-store-assistant' )
+		) . '</p>';
 		echo '<div class="adsa-relayconfirm__account">';
 		if ( '' !== $account || '' !== $email ) {
 			if ( '' !== $account ) {
@@ -475,9 +481,9 @@ final class RelayClaim {
 				'<strong>' . esc_html( '' !== $who ? $who : __( 'the new account', 'addsynapse-store-assistant' ) ) . '</strong>'
 			) . '</p>';
 		}
-		echo '<p class="adsa-relayconfirm__why">' . esc_html__( 'We ask so nobody can link your site to their own account. Continue only if this is your account and you started this from your AI chat a moment ago.', 'addsynapse-store-assistant' ) . '</p>';
+		echo '<p class="adsa-relayconfirm__why description">' . esc_html__( 'Only continue if this is your account. Didn\'t start this? Press Cancel.', 'addsynapse-store-assistant' ) . '</p>';
 		if ( 'key' === ( $stash['mode'] ?? '' ) ) {
-			echo '<p class="adsa-relayconfirm__scope" data-adsa-relay-key>' . esc_html__( 'Connect creates a key for AddSynapse that works only for this plugin\'s tools, acting as you. Changes still wait for your Approve. You can disconnect at any time from this page.', 'addsynapse-store-assistant' ) . '</p>';
+			echo '<p class="adsa-relayconfirm__scope description" data-adsa-relay-key>' . esc_html__( 'This creates a key that only works for this plugin\'s tools. You can disconnect any time here.', 'addsynapse-store-assistant' ) . '</p>';
 		}
 		echo '<form method="post" class="adsa-finish adsa-relayconfirm__form" action="' . esc_url(
 			add_query_arg(
@@ -490,7 +496,7 @@ final class RelayClaim {
 			)
 		) . '">';
 		wp_nonce_field( 'addsynapse_assistant_relay_confirm_' . $state );
-		echo '<button type="submit" name="as_connect" value="1" class="button button-primary button-hero adsa-finish__btn">' . esc_html__( 'Connect', 'addsynapse-store-assistant' ) . '</button>';
+		echo '<button type="submit" name="as_connect" value="1" class="button button-primary button-hero adsa-finish__btn">' . esc_html__( 'Yes, connect', 'addsynapse-store-assistant' ) . '</button>';
 		echo '<button type="submit" name="as_cancel" value="1" class="button button-secondary">' . esc_html__( 'Cancel', 'addsynapse-store-assistant' ) . '</button>';
 		echo '</form>';
 		echo '</div></li>';
@@ -688,7 +694,7 @@ final class RelayClaim {
 				'password'   => $password,
 				'protocol'   => self::PROTOCOL,
 			),
-			15
+			40
 		);
 		unset( $password );
 		if ( is_wp_error( $response ) ) {
@@ -823,7 +829,8 @@ final class RelayClaim {
 				'key'        => $key['secret'],
 				'protocol'   => self::PROTOCOL,
 			),
-			15
+			// AddSynapse checks the new key against this site before it answers (its own call can take ~15 s).
+			40
 		);
 		unset( $key['secret'] );
 		if ( is_wp_error( $response ) ) {

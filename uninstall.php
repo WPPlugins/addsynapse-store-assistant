@@ -87,6 +87,8 @@ function addsynapse_assistant_uninstall_site() {
 		'addsynapse_assistant_remote_log',
 		// 1.3.0: the welcome wizard (finished / skipped, chosen way).
 		'addsynapse_assistant_onboarding',
+		// 1.3.5: Home's «You're all set!» panel (first shown, hidden).
+		'addsynapse_assistant_allset',
 		// 1.3.0: the AddSynapse connection AddSynapse confirmed (uuid of the password, user, time — never the password).
 		'addsynapse_assistant_relay_claimed',
 		// 1.3.1: a claimed password AddSynapse has not used yet (uuid, user, time — never the password).
