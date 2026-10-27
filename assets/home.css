@@ -336,7 +336,14 @@
 .adsa-allset__prompts li { margin: 0 0 8px; }
 .adsa-allset__open { margin: 18px 0 8px; display: flex; align-items: center; flex-wrap: wrap; gap: 16px; }
 .adsa-allset__hide { margin: 8px 0 0; text-align: right; }
+/* 1.3.6: the first prompt — large, the main thing to copy. */
+.adsa-allset__first { margin: 20px 0 0; padding: 18px 20px; background: #f0f6fc; border: 1px solid #c5d9ed; border-radius: 10px; }
+.adsa-allset__first .adsa-allset__try { margin: 0 0 10px; font-size: 16px; }
+.adsa-allset__prompt.adsa-copy__src { display: block; width: 100%; box-sizing: border-box; resize: none; padding: 14px 16px !important; border: 2px solid #2271b1 !important; border-radius: 8px !important; background: #fff !important; color: #1d2327; font-family: inherit; font-size: 18px; font-weight: 600; line-height: 1.45; field-sizing: content; min-height: 4.5em; }
+.adsa-allset__first .adsa-allset__open { margin: 14px 0 0; }
+.adsa-allset__more { margin: 18px 0 4px; color: var(--adsa-muted); font-size: 13px; }
+.adsa-allset__prompts .adsa-copy__src { font-size: 12px; }
 .adsa-allset-collapsed { max-width: 860px; }
 .adsa-allset-collapsed .adsa-allset { box-shadow: none; margin: 12px 0 0; }
 .adsa-recheck { margin: 8px 0 0; }
-@media (max-width: 600px) { .adsa-allset { padding: 20px 16px; } .adsa-allset__title { font-size: 21px; } }
+@media (max-width: 600px) { .adsa-allset { padding: 20px 16px; } .adsa-allset__title { font-size: 21px; } .adsa-allset__first { padding: 14px 12px; } .adsa-allset__prompt.adsa-copy__src { font-size: 16px; min-height: 9em; } .adsa-allset__first .adsa-allset__open .button { width: 100%; text-align: center; } }

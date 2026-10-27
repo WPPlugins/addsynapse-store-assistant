@@ -63,6 +63,8 @@ final class RemoteAccess {
 		ApplyPricesAbility::NAME,
 		ApplyChangesAbility::NAME,
 		HoldChangesAbility::NAME,
+		PageTemplates::NAME,
+		CheckMediaUrlAbility::NAME,
 	);
 
 	/** Write abilities (owner-approved change sets only; never agent tools). */
@@ -300,6 +302,8 @@ final class RemoteAccess {
 		( new DesignAbilities() )->register();
 		( new ReadStateAbility() )->register();
 		( new ApplyChangesAbility() )->register();
+		( new PageTemplates() )->register();
+		( new CheckMediaUrlAbility() )->register();
 		if ( ! Environment::has_woocommerce() ) {
 			return;
 		}

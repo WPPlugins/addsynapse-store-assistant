@@ -104,6 +104,16 @@ final class DesignUnits {
 					'values' => array( 'css' => $post ? (string) $post->post_content : null ),
 				);
 			case 'setting':
+				if ( SiteLogo::KEY === $key ) {
+					if ( ! current_user_can( 'edit_theme_options' ) ) {
+						throw new \InvalidArgumentException( 'You are not allowed to change the logo.' );
+					}
+					return array(
+						'name'   => 'Site logo',
+						'type'   => 'theme_setting',
+						'values' => array( 'value' => (string) wp_json_encode( SiteLogo::read() ) ),
+					);
+				}
 				$where = self::setting_where( $key );
 				return array(
 					'name'   => Customizer::label( $key ),
@@ -293,6 +303,10 @@ final class DesignUnits {
 				ThemeSettings::write_css( $key, (string) $set['css'] );
 				return;
 			case 'setting':
+				if ( SiteLogo::KEY === $key ) {
+					SiteLogo::write( (array) json_decode( (string) $set['value'], true ) );
+					return;
+				}
 				Customizer::write( self::setting_where( $key ), json_decode( (string) $set['value'], true ) );
 				return;
 			case 'widgets':
@@ -450,13 +464,19 @@ final class DesignUnits {
 		);
 		$ops   = (array) ( $line['after']['ops'] ?? array() );
 		if ( ThemeSettings::SETTING === ( $line['field'] ?? '' ) ) {
-			$image = ! empty( $line['before']['image'] );
-			$ops   = array(
+			$image  = ! empty( $line['before']['image'] );
+			$before = $line['before']['value'] ?? null;
+			$after  = $line['after']['value'] ?? null;
+			if ( ! empty( $line['before']['logo'] ) ) {
+				$before = SiteLogo::image( $before ) > 0 ? SiteLogo::image( $before ) : null;
+				$after  = SiteLogo::image( $after ) > 0 ? SiteLogo::image( $after ) : null;
+			}
+			$ops = array(
 				array(
 					'label'  => (string) ( $line['label'] ?? '' ),
 					'field'  => 'settings',
-					'before' => ThemeSettings::text( $line['before']['value'] ?? null, $image ),
-					'after'  => ThemeSettings::text( $line['after']['value'] ?? null, $image ),
+					'before' => ThemeSettings::text( $before, $image ),
+					'after'  => ThemeSettings::text( $after, $image ),
 				),
 			);
 		}
@@ -574,6 +594,9 @@ final class DesignUnits {
 		$data = json_decode( $value, true );
 		if ( null === $data && 'null' !== trim( $value ) ) {
 			return 'Invalid value';
+		}
+		if ( SiteLogo::KEY === $key ) {
+			return SiteLogo::problem( $data );
 		}
 		self::setting_where( $key );
 		if ( Customizer::MISSING === $data ) {

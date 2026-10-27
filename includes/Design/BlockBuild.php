@@ -327,8 +327,24 @@ final class BlockBuild {
 			),
 			$attrs
 		);
-		unset( $attrs['width'], $attrs['height'] );
-		$img = '<img src="' . esc_url( (string) $image['image_url'] ) . '" alt="' . esc_attr( $alt ) . '" class="wp-image-' . $image_id . '"/>';
+		// 1.3.7: the img carries what save() puts there (border / shadow of the skipped supports, aspectRatio, scale → object-fit,
+		// width / height) — before, these were dropped silently (a square photo where a round one was asked for).
+		foreach ( array( 'width', 'height' ) as $side ) {
+			if ( isset( $attrs[ $side ] ) && is_numeric( $attrs[ $side ] ) ) {
+				$attrs[ $side ] = ( 0 + $attrs[ $side ] ) . 'px';
+			}
+		}
+		$inner   = BlockAttrs::inner_props( 'core/image', $attrs );
+		$classes = array_merge( $inner['classes'], array( 'wp-image-' . $image_id ) );
+		$img     = '<img src="' . esc_url( (string) $image['image_url'] ) . '" alt="' . esc_attr( $alt ) . '" class="' . esc_attr( implode( ' ', $classes ) ) . '"';
+		if ( $inner['styles'] ) {
+			$css = '';
+			foreach ( $inner['styles'] as $prop => $value ) {
+				$css .= $prop . ':' . $value . ';';
+			}
+			$img .= ' style="' . esc_attr( $css ) . '"';
+		}
+		$img .= '/>';
 		if ( '' !== $url ) {
 			$clean = DesignText::url( $url );
 			if ( is_wp_error( $clean ) ) {

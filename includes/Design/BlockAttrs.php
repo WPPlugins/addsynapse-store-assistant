@@ -43,14 +43,23 @@ final class BlockAttrs {
 		'core/column'    => array( 'width', 'verticalAlignment' ),
 		'core/spacer'    => array( 'height' ),
 		'core/cover'     => array( 'dimRatio', 'overlayColor', 'customOverlayColor', 'minHeight', 'minHeightUnit', 'contentPosition', 'isDark' ),
-		'core/image'     => array( 'sizeSlug' ),
+		'core/image'     => array( 'sizeSlug', 'aspectRatio', 'scale', 'width', 'height' ),
 		'core/quote'     => array( 'textAlign' ),
 	);
 
 	/**
-	 * Supports whose skipped serialization moves to an inner element this class knows (button → its link).
+	 * Supports whose skipped serialization moves to an inner element this class knows (button → its link, image → its img:
+	 * class name, or `<tag>` for a tag name).
 	 */
-	private const INNER = array( 'core/button' => 'wp-block-button__link' );
+	private const INNER = array(
+		'core/button' => 'wp-block-button__link',
+		'core/image'  => '<img>',
+	);
+
+	/**
+	 * Values of core/image `scale` (CSS object-fit).
+	 */
+	public const IMAGE_SCALES = array( 'cover', 'contain', 'fill', 'none', 'scale-down' );
 
 	/**
 	 * Merges a change into attributes: nested objects merge, null removes, lists replace.
@@ -300,7 +309,9 @@ final class BlockAttrs {
 		}
 		self::swap( $tags, self::wrapper_props( $name, $old ), self::wrapper_props( $name, $new ) );
 		if ( isset( self::INNER[ $name ] ) ) {
-			if ( 1 !== count( $html ) || ! $tags->next_tag( array( 'class_name' => self::INNER[ $name ] ) ) ) {
+			$inner = self::INNER[ $name ];
+			$query = '<' === $inner[0] ? array( 'tag_name' => trim( $inner, '<>' ) ) : array( 'class_name' => $inner );
+			if ( 1 !== count( $html ) || ! $tags->next_tag( $query ) ) {
 				throw new \InvalidArgumentException( 'Unexpected block markup.' );
 			}
 			self::swap( $tags, self::inner_props( $name, $old ), self::inner_props( $name, $new ) );
@@ -464,6 +475,14 @@ final class BlockAttrs {
 				if ( ! empty( $attrs['sizeSlug'] ) ) {
 					$classes[] = 'size-' . sanitize_html_class( (string) $attrs['sizeSlug'] );
 				}
+				// save(): is-resized with a width / height, has-custom-border while the img carries border or shadow props.
+				if ( ! empty( $attrs['width'] ) || ! empty( $attrs['height'] ) ) {
+					$classes[] = 'is-resized';
+				}
+				$img = self::support_props( $type, $attrs, true );
+				if ( $img['classes'] || $img['styles'] ) {
+					$classes[] = 'has-custom-border';
+				}
 				break;
 			case 'core/cover':
 				if ( isset( $attrs['minHeight'] ) && '' !== $attrs['minHeight'] ) {
@@ -622,11 +641,50 @@ final class BlockAttrs {
 				$props['classes'][] = 'no-border-radius';
 			}
 		}
+		if ( 'core/image' === $name ) {
+			// save(): style={ ...border, ...shadow, aspectRatio, objectFit: scale, width, height } on the img.
+			foreach ( self::image_dimensions( $attrs ) as $prop => $value ) {
+				$props['styles'][ $prop ] = $value;
+			}
+		}
 		return array(
 			'classes' => array_values( array_unique( $props['classes'] ) ),
 			'styles'  => $props['styles'],
 			'attrs'   => array(),
 		);
+	}
+
+	/**
+	 * Inline styles of a core/image img from its own attributes (aspectRatio, scale, width, height), checked.
+	 *
+	 * @param array<string,mixed> $attrs Attributes.
+	 * @return array<string,string>
+	 * @throws \InvalidArgumentException When a value is not a plain CSS value.
+	 */
+	public static function image_dimensions( array $attrs ): array {
+		$out = array();
+		if ( isset( $attrs['aspectRatio'] ) && '' !== $attrs['aspectRatio'] && 'auto' !== $attrs['aspectRatio'] ) {
+			$ratio = trim( (string) $attrs['aspectRatio'] );
+			if ( ! preg_match( '#^\d{1,4}(\.\d{1,4})?(\s*/\s*\d{1,4}(\.\d{1,4})?)?$#', $ratio ) ) {
+				throw new \InvalidArgumentException( 'aspectRatio of an image is a ratio like "1", "4/3" or "16/9".' );
+			}
+			$out['aspect-ratio'] = $ratio;
+		}
+		if ( isset( $attrs['scale'] ) && '' !== $attrs['scale'] ) {
+			if ( ! in_array( $attrs['scale'], self::IMAGE_SCALES, true ) ) {
+				throw new \InvalidArgumentException( 'scale of an image is cover, contain, fill, none or scale-down.' );
+			}
+			$out['object-fit'] = (string) $attrs['scale'];
+		}
+		foreach ( array( 'width', 'height' ) as $side ) {
+			if ( isset( $attrs[ $side ] ) && '' !== $attrs[ $side ] ) {
+				// A number is the pre-6.3 format (an img width="…" attribute that save() writes itself): left as it is.
+				if ( is_string( $attrs[ $side ] ) ) {
+					$out[ $side ] = self::css_value( $attrs[ $side ] );
+				}
+			}
+		}
+		return $out;
 	}
 
 	/**

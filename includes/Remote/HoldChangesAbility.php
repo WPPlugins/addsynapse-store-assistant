@@ -1,7 +1,7 @@
 <?php
 /**
  * Ability: AddSynapse hands over a draft that only a site administrator may approve, on this plugin's wp-admin approval
- * page (AdminApprovals) — today a coupon above 50 % off (CouponBrake). Writes nothing to the shop: the draft waits there,
+ * page (AdminApprovals) — a big or unbounded coupon (CouponBrake). Writes nothing to the shop: the draft waits there,
  * checked like an approval, until an administrator approves or discards it. Only on the remote route.
  *
  * @package Addsynapse\StoreAssistant
@@ -32,7 +32,7 @@ final class HoldChangesAbility {
 			self::NAME,
 			array(
 				'label'               => __( 'Send a draft to the wp-admin approval page', 'addsynapse-store-assistant' ),
-				'description'         => 'Puts a coupon draft above 50% off on this site\'s wp-admin approval page (AddSynapse → Approvals), where a site administrator approves or discards it. Changes nothing in the shop. Returns approve_url. With status_only: only reports what an administrator decided there (held, applied, discarded, undone, expired or none).',
+				'description'         => 'Puts a coupon draft that needs an administrator (above 50% off, a fixed discount above 50, free shipping without a usage limit, or neither a usage limit nor an expiry date) on this site\'s wp-admin approval page (AddSynapse → Approvals), where a site administrator approves or discards it. Changes nothing in the shop. Returns approve_url. With status_only: only reports what an administrator decided there (held, applied, discarded, undone, expired or none).',
 				'category'            => AbilitiesRegistrar::CATEGORY,
 				'input_schema'        => array(
 					'type'                 => 'object',

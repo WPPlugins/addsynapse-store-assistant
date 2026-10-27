@@ -44,6 +44,22 @@ defined( 'ABSPATH' ) || exit;
  */
 final class RelayClaim {
 
+	/**
+	 * Seconds the claim POST may take (audit 24/10 L5: 40 s outlived PHP's usual 30 s limit; AddSynapse answers in < 20 s).
+	 */
+	public const POST_TIMEOUT = 25;
+
+	/**
+	 * Asks PHP for time for the claim POST where the host allows it (a 30 s limit cut the request off before 1.3.7).
+	 */
+	private static function more_time(): void {
+		$disabled = array_map( 'trim', explode( ',', (string) ini_get( 'disable_functions' ) ) );
+		if ( function_exists( 'set_time_limit' ) && ! in_array( 'set_time_limit', $disabled, true ) ) {
+			set_time_limit( 60 ); // phpcs:ignore Squiz.PHP.DiscouragedFunctions.Discouraged -- one outgoing request that must finish (audit L5).
+		}
+	}
+
+
 	/** The admin page (the plugin's Home). */
 	public const PAGE = 'addsynapse';
 
@@ -685,6 +701,7 @@ final class RelayClaim {
 			return self::already_connected( (int) $user->ID ) ? self::connected_url() : $failed;
 		}
 
+		self::more_time();
 		$response = Api::post(
 			self::PATH,
 			array(
@@ -694,7 +711,7 @@ final class RelayClaim {
 				'password'   => $password,
 				'protocol'   => self::PROTOCOL,
 			),
-			40
+			self::POST_TIMEOUT
 		);
 		unset( $password );
 		if ( is_wp_error( $response ) ) {
@@ -819,6 +836,7 @@ final class RelayClaim {
 		}
 		$key = RelayKeys::mint( (int) $user->ID, $who );
 
+		self::more_time();
 		$response = Api::post(
 			self::PATH,
 			array(
@@ -830,7 +848,7 @@ final class RelayClaim {
 				'protocol'   => self::PROTOCOL,
 			),
 			// AddSynapse checks the new key against this site before it answers (its own call can take ~15 s).
-			40
+			self::POST_TIMEOUT
 		);
 		unset( $key['secret'] );
 		if ( is_wp_error( $response ) ) {

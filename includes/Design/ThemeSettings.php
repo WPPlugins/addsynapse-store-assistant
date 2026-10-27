@@ -167,6 +167,9 @@ final class ThemeSettings extends Planner {
 		if ( '' === $id ) {
 			throw new \InvalidArgumentException( 'Say which setting (its id from describe_site_design, section customizer).' );
 		}
+		if ( in_array( $id, SiteLogo::IDS, true ) ) {
+			return self::plan_logo( $op );
+		}
 		$setting = Customizer::setting( $id );
 		if ( null === $setting && null !== ( $raw = Customizer::theme_option( $id ) ) ) { // phpcs:ignore Generic.CodeAnalysis.AssignmentInCondition.Found, Squiz.PHP.DisallowMultipleAssignments.FoundInControlStructure
 			return self::plan_theme_option( $id, $raw, $op );
@@ -224,6 +227,52 @@ final class ThemeSettings extends Planner {
 			),
 			'after'       => array(
 				'value' => $clean,
+			),
+		);
+	}
+
+	/**
+	 * Line of the site logo (1.3.7, block themes too): the `site_logo` option and, when the theme supports it, the
+	 * `custom_logo` theme mod — one unit, so Approve and Undo restore both exactly.
+	 *
+	 * @param array<string,mixed> $op {setting, value: image id or 0}.
+	 * @return array<string,mixed>
+	 * @throws \InvalidArgumentException When not allowed.
+	 */
+	private static function plan_logo( array $op ): array {
+		if ( ! current_user_can( 'edit_theme_options' ) ) {
+			throw new \InvalidArgumentException( 'You are not allowed to change the logo.' );
+		}
+		if ( ! SiteLogo::supported() ) {
+			throw new \InvalidArgumentException( 'This theme shows no site logo.' );
+		}
+		if ( ! array_key_exists( 'value', $op ) || ! is_numeric( $op['value'] ) || (int) $op['value'] < 0 ) {
+			throw new \InvalidArgumentException( 'value is a media library image id (find_media), or 0 to remove the logo.' );
+		}
+		$image = (int) $op['value'];
+		if ( $image > 0 ) {
+			$check = DesignText::image( $image );
+			if ( is_wp_error( $check ) ) {
+				throw new \InvalidArgumentException( esc_html( $check->get_error_message() ) );
+			}
+		}
+		return array(
+			'object_type' => self::OBJECT,
+			'object_id'   => 0,
+			'parent_id'   => 0,
+			'label'       => 'Logo',
+			'sku'         => SiteLogo::KEY,
+			'field'       => self::SETTING,
+			'before'      => array(
+				'kind'  => 'setting',
+				'id'    => SiteLogo::KEY,
+				'where' => array( 'type' => 'logo' ),
+				'image' => true,
+				'logo'  => true,
+				'value' => SiteLogo::read(),
+			),
+			'after'       => array(
+				'value' => SiteLogo::target( $image ),
 			),
 		);
 	}
@@ -565,6 +614,16 @@ final class ThemeSettings extends Planner {
 	 * @return array<int,array<string,string>>
 	 */
 	private static function item_ops( array $item ): array {
+		if ( self::SETTING === ( $item['field'] ?? '' ) && ! empty( $item['before']['logo'] ) ) {
+			return array(
+				array(
+					'label'  => (string) $item['label'],
+					'field'  => 'settings',
+					'before' => self::text( SiteLogo::image( $item['before']['value'] ?? null ) > 0 ? SiteLogo::image( $item['before']['value'] ?? null ) : null, true ),
+					'after'  => self::text( SiteLogo::image( $item['after']['value'] ?? null ) > 0 ? SiteLogo::image( $item['after']['value'] ?? null ) : null, true ),
+				),
+			);
+		}
 		if ( self::SETTING === ( $item['field'] ?? '' ) ) {
 			$image = ! empty( $item['before']['image'] );
 			return array(

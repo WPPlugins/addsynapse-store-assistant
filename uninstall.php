@@ -134,7 +134,7 @@ function addsynapse_assistant_uninstall_site() {
 	}
 
 	// Our post meta (images in use, coupons created by a change) — the posts themselves stay.
-	foreach ( array( '_addsynapse_assistant_pending', '_addsynapse_assistant_uploaded', '_addsynapse_assistant_conversation', '_addsynapse_assistant_changeset', '_addsynapse_assistant_used_at' ) as $meta_key ) {
+	foreach ( array( '_addsynapse_assistant_pending', '_addsynapse_assistant_uploaded', '_addsynapse_assistant_conversation', '_addsynapse_assistant_changeset', '_addsynapse_assistant_used_at', '_addsynapse_assistant_source_url' ) as $meta_key ) {
 		delete_metadata( 'post', 0, $meta_key, '', true );
 	}
 	// Orders created by a change on HPOS stores keep their meta in the WooCommerce orders meta table.

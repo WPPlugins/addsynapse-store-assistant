@@ -83,7 +83,15 @@ final class DesignText {
 		} else {
 			unset( $allowed['img'], $allowed['video'], $allowed['audio'], $allowed['source'], $allowed['track'], $allowed['area'], $allowed['map'], $allowed['form'], $allowed['button'], $allowed['input'], $allowed['textarea'], $allowed['select'], $allowed['option'] );
 		}
-		$clean = trim( wp_kses( $html, $allowed, array( 'http', 'https' ) ) );
+		// 1.3.7: WordPress' CSS filter drops every value with «(», so Gutenberg's own text-colour format
+		// <mark style="background-color:rgba(0, 0, 0, 0);color:#hex" class="has-inline-color"> lost its transparent background and
+		// showed the browser's yellow <mark>. Plain rgb()/rgba() colours on color / background-color pass, only inside this call.
+		add_filter( 'safecss_filter_attr_allow_css', array( self::class, 'allow_rgb_color' ), 10, 2 );
+		try {
+			$clean = trim( wp_kses( $html, $allowed, array( 'http', 'https' ) ) );
+		} finally {
+			remove_filter( 'safecss_filter_attr_allow_css', array( self::class, 'allow_rgb_color' ), 10 );
+		}
 		if ( '' === trim( wp_strip_all_tags( $clean ) ) ) {
 			return new WP_Error( 'addsynapse_assistant_content_empty', 'The new text is empty after removing unsupported markup.' );
 		}
@@ -91,6 +99,20 @@ final class DesignText {
 			'html'     => $clean,
 			'external' => array_values( array_unique( $external ) ),
 		);
+	}
+
+	/**
+	 * Filter safecss_filter_attr_allow_css (only while rich() runs kses): a color / background-color declaration whose value is
+	 * a plain rgb() / rgba() colour (numbers only) is allowed; everything else keeps WordPress' own verdict.
+	 *
+	 * @param bool   $allow       WordPress' verdict.
+	 * @param string $declaration The declaration («property:value»).
+	 */
+	public static function allow_rgb_color( $allow, $declaration ): bool {
+		if ( $allow ) {
+			return true;
+		}
+		return (bool) preg_match( '/^\s*(?:background-color|color)\s*:\s*rgba?\(\s*\d{1,3}%?\s*,\s*\d{1,3}%?\s*,\s*\d{1,3}%?\s*(?:,\s*(?:0|1|0?\.\d{1,4}|\d{1,3}%)\s*)?\)\s*$/i', (string) $declaration );
 	}
 
 	/**

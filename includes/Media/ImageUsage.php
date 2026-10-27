@@ -16,8 +16,10 @@ defined( 'ABSPATH' ) || exit;
  *  - product galleries (`_product_image_gallery`),
  *  - block markup (`wp-image-ID`, `"id":ID`, `"mediaId":ID`) in any post content,
  *  - Elementor data (`"id":ID` / `"id":"ID"` in `_elementor_data`),
- *  - the file's unique base name (URLs of every size) in any post content, post meta or option.
- * Revisions and the renderer caches of Elementor are ignored (they are copies, rebuilt on demand).
+ *  - the logo / site icon (`site_logo`, `site_icon`, the `custom_logo` theme mod),
+ *  - the file's URL (any size: name, -WxH, -scaled, extension) in post content, post meta, theme mods and widgets.
+ * Revisions, attachments' own meta, the renderer caches of Elementor and this plugin's own options and meta (its logs keep the
+ * source links and file names — 1.3.7 refused every Undo because of them) are not uses.
  */
 final class ImageUsage {
 
@@ -75,14 +77,33 @@ final class ImageUsage {
 		if ( $elementor > 0 ) {
 			return true;
 		}
+		$mods = get_theme_mods();
+		foreach ( array( get_option( 'site_logo' ), get_option( 'site_icon' ), is_array( $mods ) ? ( $mods['custom_logo'] ?? 0 ) : 0 ) as $used ) {
+			if ( is_numeric( $used ) && (int) $used === $id ) {
+				return true;
+			}
+		}
+		// Widgets (block widgets keep block markup) and theme mods (header / background images by URL).
+		$widgets = (int) $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT COUNT(*) FROM {$wpdb->options} WHERE option_name LIKE %s AND option_value REGEXP %s",
+				$wpdb->esc_like( 'widget_' ) . '%',
+				$ids_re
+			)
+		);
+		if ( $widgets > 0 ) {
+			return true;
+		}
 		$base = self::file_stem( $id );
 		if ( '' !== $base ) {
-			$like  = '%' . $wpdb->esc_like( $base ) . '%';
-			$in    = implode( ', ', array_fill( 0, count( self::CACHE_KEYS ), '%s' ) );
-			$posts = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$wpdb->posts} WHERE ID <> %d AND post_type <> 'revision' AND post_content LIKE %s", $id, $like ) );
+			// The file's URL, exactly: «/<name>.<ext>» or a size of it («/<name>-300x200.jpg», «-scaled»), never «/<name>-1.jpg».
+			$like    = '%' . $wpdb->esc_like( $base ) . '%';
+			$file_re = '/' . preg_quote( $base, '' ) . '(-[0-9]+x[0-9]+)?(-scaled)?[.](jpe?g|png|gif|webp|avif|svg)';
+			$in      = implode( ', ', array_fill( 0, count( self::CACHE_KEYS ), '%s' ) );
+			$posts   = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$wpdb->posts} WHERE ID <> %d AND post_type NOT IN ('revision', 'attachment') AND post_content LIKE %s AND post_content REGEXP %s", $id, $like, $file_re ) );
 			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber -- $in holds only placeholders (one per CACHE_KEYS).
-			$meta = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$wpdb->postmeta} m JOIN {$wpdb->posts} p ON p.ID = m.post_id WHERE m.post_id <> %d AND p.post_type <> 'revision' AND m.meta_key NOT LIKE %s AND m.meta_key NOT IN ( {$in} ) AND m.meta_value LIKE %s", array_merge( array( $id, $wpdb->esc_like( '_wp_attach' ) . '%' ), self::CACHE_KEYS, array( $like ) ) ) );
-			$opts = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$wpdb->options} WHERE option_name NOT LIKE %s AND option_name NOT LIKE %s AND option_value LIKE %s", $wpdb->esc_like( '_transient' ) . '%', $wpdb->esc_like( '_site_transient' ) . '%', $like ) );
+			$meta = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$wpdb->postmeta} m JOIN {$wpdb->posts} p ON p.ID = m.post_id WHERE m.post_id <> %d AND p.post_type NOT IN ('revision', 'attachment') AND m.meta_key NOT LIKE %s AND m.meta_key NOT LIKE %s AND m.meta_key NOT LIKE %s AND m.meta_key NOT IN ( {$in} ) AND m.meta_value LIKE %s AND m.meta_value REGEXP %s", array_merge( array( $id, $wpdb->esc_like( '_wp_attach' ) . '%', $wpdb->esc_like( '_addsynapse' ) . '%', $wpdb->esc_like( '_aiops' ) . '%' ), self::CACHE_KEYS, array( $like, $file_re ) ) ) );
+			$opts = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$wpdb->options} WHERE ( option_name LIKE %s OR option_name LIKE %s ) AND option_value LIKE %s AND option_value REGEXP %s", $wpdb->esc_like( 'theme_mods_' ) . '%', $wpdb->esc_like( 'widget_' ) . '%', $like, $file_re ) );
 			if ( $posts + $meta + $opts > 0 ) {
 				return true;
 			}

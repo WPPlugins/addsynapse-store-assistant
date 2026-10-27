@@ -6,7 +6,7 @@ Tested up to: 7.1
 Requires PHP: 7.4
 WC requires at least: 8.0
 WC tested up to: 11.1
-Stable tag: 1.3.5
+Stable tag: 1.3.7
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -57,7 +57,7 @@ Search products by name, SKU, category, tag, brand, attribute, price or stock, a
 
 = Works on plain WordPress too =
 
-No WooCommerce? From Claude you can edit pages and posts (title, excerpt, text, publish or unpublish), menus, featured images and SEO titles and descriptions — each a draft you approve, with exact Undo. The wp-admin chat reads pages, posts, menus, media and SEO too.
+No WooCommerce? From Claude you can edit pages and posts (title, excerpt, text, template, publish or unpublish), menus, featured images, the look of the site, images from a web address and SEO titles and descriptions — each a draft you approve, with exact Undo. The wp-admin chat reads pages, posts, menus, media and SEO too.
 
 = Every change is a draft a person approves =
 
@@ -210,7 +210,9 @@ Optional: use your site from Claude or ChatGPT. "Connect to AddSynapse" opens ap
 
 You start the connection from your AI chat. It opens this plugin's page on your site. For a logged-in administrator only, that page asks AddSynapse which account started the connection (`POST https://api.addsynapse.com/api/v1/assistant/relay-claim/preview`: the one-time code and site address; answer: account name and masked email) and asks you to confirm it. Only if you press Connect does the plugin create a random connection key for AddSynapse, acting as you, and send it once from your server over HTTPS (`POST https://api.addsynapse.com/api/v1/assistant/relay-claim`: key, user name, site address, one-time code — never in a web address); Cancel creates nothing. The site keeps only a keyed hash of the key. A key AddSynapse does not use within 15 minutes is revoked. Sites connected with an earlier version keep their WordPress Application Password until they reconnect.
 
-That key works only on this plugin's own `addsynapse-assistant/v1/remote/*` routes and only over HTTPS (no users, plugins, settings, other REST routes or XML-RPC). With it, AddSynapse's servers call your site, when you ask your AI app, to read: the site or store name and structure, pages, posts, menus and media, products and variations, categories, stock and catalogue reports, sales totals and best sellers (never customer names, emails or addresses), and SEO titles and descriptions. Only after you press Approve on a draft (or Undo), and only with a single-use approval ticket that AddSynapse signs at that moment (Ed25519, valid 5 minutes, bound to this site and to the exact values), they write the approved values: titles, excerpts, content and status of pages and posts, menus, featured images, SEO titles and meta descriptions, and on WooCommerce stores prices, sale prices and stock of products and variations, and coupons. Each write is listed in Settings → Approval log. Disconnect at any time with Disconnect AddSynapse on AddSynapse → Home; deactivating or deleting the plugin revokes the key too.
+That key works only on this plugin's own `addsynapse-assistant/v1/remote/*` routes and only over HTTPS (no users, plugins, settings, other REST routes or XML-RPC). With it, AddSynapse's servers call your site, when you ask your AI app, to read: the site or store name and structure, pages, posts, menus and media, products and variations, categories, stock and catalogue reports, sales totals and best sellers (never customer names, emails or addresses), and SEO titles and descriptions. Only after you press Approve on a draft (or Undo), and only with a single-use approval ticket that AddSynapse signs at that moment (Ed25519, valid 5 minutes, bound to this site and to the exact values), they write the approved values: titles, excerpts, content, status and template of pages and posts, menus, featured images, the look of the site (styles, templates, theme settings and logo, widgets, Additional CSS), SEO titles and meta descriptions, and on WooCommerce stores prices, sale prices and stock of products and variations, and coupons. Each write is listed in Settings → Approval log.
+
+Adding an image from a web address (a link you give your AI app): only after you press Approve, your server downloads that one image from the address you gave (https only; private, local and loopback addresses are refused, also after redirects; JPG, PNG, WebP or GIF up to 10 MB, 15 seconds at most) and adds it to the media library with the alt text and title shown on the draft. The request goes to that website, not to AddSynapse, under that website's own terms; the plugin sends nothing but the request for the file. Undo deletes the image again while nothing on the site uses it. Disconnect at any time with Disconnect AddSynapse on AddSynapse → Home; deactivating or deleting the plugin revokes the key too.
 
 Before you connect, the AddSynapse setup page may check whether this plugin is active on your site by opening a public route of it (`addsynapse-assistant/v1/hello`) that answers only the plugin name, that it supports AI-app connections and whether its version is recent enough. This is a request from AddSynapse to your site; the plugin sends nothing for it.
 
@@ -225,6 +227,18 @@ Optional and off by default, separate from the account and from your AI key. The
 * AddSynapse privacy policy: https://addsynapse.com/privacy
 
 == Changelog ==
+
+= 1.3.7 =
+* New: from Claude, add an image to the media library from a public web address you give (after you approve the draft; Undo deletes it).
+* New: from Claude, give one page another template of your theme (for example a page without its title), with exact Undo.
+* New: the site logo can be set on block themes too (the Site Logo block), and on classic themes it now stays in sync.
+* Fixed: coloured words kept their transparent background, so they no longer show a yellow highlight.
+* Fixed: rounded or cropped images (border radius, aspect ratio, object fit, width, height) keep their shape when built by the AI.
+* Improved: coupons with a fixed discount above 50, free shipping without a usage limit, or with neither a usage limit nor an expiry date are approved on AddSynapse → Approvals in wp-admin, like coupons above 50% off.
+* Fixed: connecting no longer fails on hosts with a 30-second PHP time limit.
+
+= 1.3.6 =
+* Improved: «You're all set!» starts with one prompt to copy into Claude, which asks it what it can do for your store with 5 examples to try, in your admin language. Two more examples below it.
 
 = 1.3.5 =
 * Improved: simpler setup. Step 2 is one «Connect to AddSynapse» button that links this site to your AddSynapse account; adding AddSynapse to Claude or ChatGPT moves to step 3, shown after the site is connected.
@@ -311,6 +325,12 @@ Optional and off by default, separate from the account and from your AI key. The
 * First release on WordPress.org: chat in wp-admin, read tools, previews with Approve and Undo for prices, stock, categories, attributes, variations, product details, menus, pages, SEO, orders and coupons, CSV import, 5-day free trial without sign-up, then a free read-only plan; Subscribe from the plugin. Bulk previews show how many questions they count (10 products = 1 question). Slash commands, previews, Approve, Undo, voice input and Show me work for everyone, without a connection or subscription.
 
 == Upgrade Notice ==
+
+= 1.3.7 =
+Images from a web address, page templates and the logo on block themes from Claude; coloured words and rounded images keep their look; more coupons approved in wp-admin.
+
+= 1.3.6 =
+One prompt to copy into Claude after setup: it shows what Claude can do for your store.
 
 = 1.3.5 =
 Simpler setup: one «Connect to AddSynapse» button links the site to your account; started in Claude, you land right on «Yes, connect».

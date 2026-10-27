@@ -1,6 +1,6 @@
 <?php
 /**
- * wp-admin approval of the changes AddSynapse may not apply by itself (CouponBrake: a coupon above 50 % off). AddSynapse
+ * wp-admin approval of the changes AddSynapse may not apply by itself (CouponBrake: big or unbounded coupons). AddSynapse
  * hands the draft over (ability hold-changes — nothing is written); a site administrator sees every value on this page
  * (AddSynapse → Approvals) and approves it, discards it, or later undoes it — the same all-or-nothing writes and approval
  * log as the remote route (ApplyChangesAbility), here run by the logged-in administrator (capability + nonce).
@@ -297,9 +297,10 @@ final class AdminApprovals {
 		echo '<h1>' . esc_html__( 'Approvals', 'addsynapse-store-assistant' ) . '</h1>';
 		echo '<p>' . esc_html(
 			sprintf(
-				/* translators: %d: percent limit. */
-				__( 'For safety, a coupon above %d%% off that your AI prepared is approved here, by a site administrator, not in the AI chat. Check every value before you approve it.', 'addsynapse-store-assistant' ),
-				CouponBrake::MAX_PERCENT
+				/* translators: 1: percent limit, 2: fixed amount limit. */
+				__( 'For safety, a coupon your AI prepared is approved here, by a site administrator, not in the AI chat, when it gives more than %1$d%% off, a fixed discount above %2$d, free shipping without a usage limit, or has neither a usage limit nor an expiry date. Check every value before you approve it.', 'addsynapse-store-assistant' ),
+				CouponBrake::MAX_PERCENT,
+				CouponBrake::MAX_FIXED
 			)
 		) . '</p>';
 		$notes = array(

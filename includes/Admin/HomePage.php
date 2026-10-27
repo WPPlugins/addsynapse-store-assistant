@@ -699,26 +699,46 @@ final class HomePage {
 	}
 
 	/**
-	 * Three example requests for Claude or ChatGPT (store or plain site).
+	 * The first prompt to paste into Claude (1.3.6): it asks the AI what it can do here, with examples to try. In the
+	 * admin's language; Greek is built in (I18n\FirstPrompt) until translate.wordpress.org has it (the text is sent to
+	 * the AI, so a Greek admin should get it in Greek).
+	 */
+	public static function first_prompt(): string {
+		$site   = self::is_site();
+		$prompt = $site
+			? __( 'Using AddSynapse, tell me what you can do for my site, with 5 examples I can try right now.', 'addsynapse-store-assistant' )
+			: __( 'Using AddSynapse, tell me what you can do for my store, with 5 examples I can try right now.', 'addsynapse-store-assistant' );
+		$source = $site
+			? 'Using AddSynapse, tell me what you can do for my site, with 5 examples I can try right now.'
+			: 'Using AddSynapse, tell me what you can do for my store, with 5 examples I can try right now.';
+		if ( $prompt === $source ) {
+			$built_in = \Addsynapse\StoreAssistant\I18n\FirstPrompt::built_in( (string) get_user_locale(), $site );
+			if ( '' !== $built_in ) {
+				return $built_in;
+			}
+		}
+		return $prompt;
+	}
+
+	/**
+	 * Two more example requests for Claude or ChatGPT (store or plain site), under the first prompt.
 	 *
 	 * @return string[]
 	 */
 	private static function try_prompts(): array {
 		return self::is_site()
 			? array(
-				__( 'Show me my 3 latest pages', 'addsynapse-store-assistant' ),
 				__( 'Which pages have no SEO description?', 'addsynapse-store-assistant' ),
 				__( 'What is in my main menu?', 'addsynapse-store-assistant' ),
 			)
 			: array(
-				__( 'Show me 3 products from my store', 'addsynapse-store-assistant' ),
 				__( 'Which products have no image?', 'addsynapse-store-assistant' ),
 				__( 'What were my best sellers last month?', 'addsynapse-store-assistant' ),
 			);
 	}
 
 	/**
-	 * «You're all set!» — open Claude (primary) or ChatGPT, three requests to copy, and (collapsed) how to add AddSynapse
+	 * «You're all set!» — the first prompt to copy (primary), open Claude or ChatGPT, two more requests to copy, and (collapsed) how to add AddSynapse
 	 * to an AI app. Ordinary links the browser opens; nothing is sent by the server.
 	 *
 	 * @param string $title   Heading.
@@ -733,7 +753,17 @@ final class HomePage {
 		if ( '' !== $lead ) {
 			echo '<p class="adsa-allset__lead">' . esc_html( $lead ) . '</p>';
 		}
-		echo '<p class="adsa-allset__try"><strong>' . esc_html__( 'Open Claude and try:', 'addsynapse-store-assistant' ) . '</strong></p>';
+		// 1.3.6: ONE prompt first, large, with its own Copy button; then Open Claude; then two smaller examples.
+		$first = self::first_prompt();
+		$id    = 'adsa-copy-' . substr( md5( $first ), 0, 8 );
+		echo '<div class="adsa-allset__first" data-adsa-first-prompt>';
+		echo '<p class="adsa-allset__try"><label for="' . esc_attr( $id ) . '"><strong>' . esc_html__( 'Copy this and paste it into Claude:', 'addsynapse-store-assistant' ) . '</strong></label></p>';
+		echo '<textarea readonly rows="2" id="' . esc_attr( $id ) . '" class="adsa-copy__src adsa-allset__prompt">' . esc_textarea( $first ) . '</textarea>';
+		echo '<p class="adsa-buttons adsa-allset__open"><button type="button" class="button button-primary button-hero adsa-copy__btn" data-copy="' . esc_attr( $id ) . '">' . esc_html__( 'Copy prompt', 'addsynapse-store-assistant' ) . '</button> ';
+		echo '<a class="button button-hero adsa-allset__claude" href="https://claude.ai/new" target="_blank" rel="noopener noreferrer">' . esc_html__( 'Open Claude ↗', 'addsynapse-store-assistant' ) . '<span class="screen-reader-text"> ' . esc_html__( '(opens in a new tab)', 'addsynapse-store-assistant' ) . '</span></a> ';
+		echo '<a class="adsa-allset__gpt" href="https://chatgpt.com/" target="_blank" rel="noopener noreferrer">' . esc_html__( 'Open ChatGPT', 'addsynapse-store-assistant' ) . '<span class="screen-reader-text"> ' . esc_html__( '(opens in a new tab)', 'addsynapse-store-assistant' ) . '</span></a></p>';
+		echo '</div>';
+		echo '<p class="adsa-allset__more">' . esc_html__( 'More to try:', 'addsynapse-store-assistant' ) . '</p>';
 		echo '<ul class="adsa-allset__prompts">';
 		foreach ( self::try_prompts() as $prompt ) {
 			echo '<li>';
@@ -741,8 +771,6 @@ final class HomePage {
 			echo '</li>';
 		}
 		echo '</ul>';
-		echo '<p class="adsa-buttons adsa-allset__open"><a class="button button-primary button-hero" href="https://claude.ai/new" target="_blank" rel="noopener noreferrer">' . esc_html__( 'Open Claude ↗', 'addsynapse-store-assistant' ) . '<span class="screen-reader-text"> ' . esc_html__( '(opens in a new tab)', 'addsynapse-store-assistant' ) . '</span></a> ';
-		echo '<a class="adsa-allset__gpt" href="https://chatgpt.com/" target="_blank" rel="noopener noreferrer">' . esc_html__( 'Open ChatGPT', 'addsynapse-store-assistant' ) . '<span class="screen-reader-text"> ' . esc_html__( '(opens in a new tab)', 'addsynapse-store-assistant' ) . '</span></a></p>';
 		echo '<details class="adsa-more adsa-addai" data-adsa-add-ways><summary>' . esc_html__( 'AddSynapse not in your Claude or ChatGPT yet?', 'addsynapse-store-assistant' ) . '</summary>';
 		self::render_add_ways();
 		echo '</details>';

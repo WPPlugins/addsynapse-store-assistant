@@ -28,6 +28,7 @@ use Addsynapse\StoreAssistant\Environment;
 use Addsynapse\StoreAssistant\Menus\MenuTree;
 use Addsynapse\StoreAssistant\Changesets\ProductFields;
 use Addsynapse\StoreAssistant\Changesets\SeoFields;
+use Addsynapse\StoreAssistant\Media\MediaSideload;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -36,7 +37,7 @@ defined( 'ABSPATH' ) || exit;
  */
 final class StateUnits {
 
-	public const KINDS = array( 'product', 'seo', 'coupon', 'content', 'featured', 'menu', 'styles', 'css', 'setting', 'widgets', 'doc', 'kit' );
+	public const KINDS = array( 'product', 'seo', 'coupon', 'content', 'featured', 'menu', 'template', 'media', 'styles', 'css', 'setting', 'widgets', 'doc', 'kit' );
 
 	/** Content fields the remote route may change. */
 	public const CONTENT_FIELDS = array( 'title', 'excerpt', 'content', 'status' );
@@ -105,6 +106,34 @@ final class StateUnits {
 				'exists' => true,
 				'name'   => self::text( (string) $post->post_title ),
 				'type'   => (string) $post->post_type,
+				'values' => $values,
+			);
+		}
+		if ( 'template' === $kind ) {
+			$post = self::editable_post( $id );
+			if ( null === $post ) {
+				return self::missing( $kind, $id, 'Page or post not found (or not editable).' );
+			}
+			return array(
+				'kind'   => $kind,
+				'id'     => $id,
+				'exists' => true,
+				'name'   => self::text( (string) $post->post_title ),
+				'type'   => (string) $post->post_type,
+				'values' => array( 'template' => PageTemplates::stored( $id ) ),
+			);
+		}
+		if ( 'media' === $kind ) {
+			$values = MediaSideload::values( $id );
+			if ( null === $values || ! current_user_can( 'upload_files' ) ) {
+				return self::missing( $kind, $id, 'No image AddSynapse added with this id.' );
+			}
+			return array(
+				'kind'   => $kind,
+				'id'     => $id,
+				'exists' => true,
+				'name'   => wp_basename( (string) get_attached_file( $id ) ),
+				'type'   => 'attachment',
 				'values' => $values,
 			);
 		}
@@ -243,6 +272,8 @@ final class StateUnits {
 			'content'  => self::CONTENT_FIELDS,
 			'featured' => array( 'image_id' ),
 			'menu'     => array( 'menu' ),
+			'template' => array( 'template' ),
+			'media'    => array( 'url', 'alt', 'title' ),
 		);
 		$allowed = $fields[ $kind ] ?? array();
 		foreach ( $set as $field => $value ) {
@@ -295,6 +326,24 @@ final class StateUnits {
 				return 'image_id must be an image of the media library (or null for none).';
 			}
 		}
+		if ( 'template' === $kind && ( ! array_key_exists( 'template', $set ) || ! is_string( $set['template'] ) || ! preg_match( '/^[A-Za-z0-9_.\/-]{0,200}$/', $set['template'] ) ) ) {
+			return 'template is a template slug ("" = the default template).';
+		}
+		if ( 'media' === $kind ) {
+			if ( array( 'alt', 'title', 'url' ) !== self::sorted_keys( $set ) ) {
+				return 'A new image needs url, alt and title.';
+			}
+			foreach ( array( 'alt', 'title' ) as $field ) {
+				$problem = MediaSideload::text_problem( $set[ $field ], $field );
+				if ( '' !== $problem ) {
+					return $problem;
+				}
+			}
+			$problem = MediaSideload::url_problem( $set['url'], false );
+			if ( '' !== $problem ) {
+				return $problem;
+			}
+		}
 		if ( 'menu' === $kind && ( ! is_array( $set['menu'] ?? null ) || ! is_array( $set['menu']['items'] ?? null ) || empty( $set['menu']['exists'] ) ) ) {
 			return 'Invalid menu snapshot.';
 		}
@@ -339,6 +388,20 @@ final class StateUnits {
 				throw new \RuntimeException( $result->get_error_message() );
 			}
 			return $id;
+		}
+		if ( 'template' === $kind ) {
+			PageTemplates::write( $id, (string) $set['template'] );
+			return $id;
+		}
+		if ( 'media' === $kind ) {
+			if ( null === $set ) {
+				// Undo: exactly the image this change set added (checked: marked, unused).
+				if ( ! wp_delete_attachment( $id, true ) ) {
+					throw new \RuntimeException( 'WordPress did not delete the image.' );
+				}
+				return $id;
+			}
+			return MediaSideload::sideload( $set );
 		}
 		if ( 'featured' === $kind ) {
 			$image = $set['image_id'] ?? null;
@@ -564,6 +627,18 @@ final class StateUnits {
 			}
 		}
 		return $values;
+	}
+
+	/**
+	 * Sorted keys of a map.
+	 *
+	 * @param array<string,mixed> $set Map.
+	 * @return array<int,string>
+	 */
+	private static function sorted_keys( array $set ): array {
+		$keys = array_map( 'strval', array_keys( $set ) );
+		sort( $keys );
+		return $keys;
 	}
 
 	/**

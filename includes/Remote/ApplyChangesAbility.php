@@ -16,6 +16,8 @@ namespace Addsynapse\StoreAssistant\Remote;
 use Addsynapse\StoreAssistant\Abilities\AbilitiesRegistrar;
 use Addsynapse\StoreAssistant\Adapters\Seo\SeoAdapters;
 use Addsynapse\StoreAssistant\Design\DesignUnits;
+use Addsynapse\StoreAssistant\Media\ImageUsage;
+use Addsynapse\StoreAssistant\Media\MediaSideload;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -34,6 +36,13 @@ final class ApplyChangesAbility {
 	 * @var bool
 	 */
 	private static $in_admin = false;
+
+	/**
+	 * The action of the call being checked (approve|undo).
+	 *
+	 * @var string
+	 */
+	private $action = '';
 
 	/**
 	 * Runs a change set approved (or undone) on the wp-admin approval page by the logged-in administrator.
@@ -157,7 +166,8 @@ final class ApplyChangesAbility {
 	 * @throws \Throwable When WordPress refuses a design write (the design units written before it are put back first).
 	 */
 	public function execute( $input ) {
-		$items     = array_values( (array) $input['items'] );
+		$this->action = (string) ( $input['action'] ?? '' );
+		$items        = array_values( (array) $input['items'] );
 		$conflicts = array();
 		$adapter   = SeoAdapters::current()->key();
 		foreach ( $items as $i => $item ) {
@@ -283,8 +293,19 @@ final class ApplyChangesAbility {
 		}
 		// Owner 22/10/2026: a coupon above 50 % off (new, raised, switched to percent, or brought back by an Undo) is never
 		// written from AddSynapse — only on the wp-admin approval page (whatever AddSynapse sends).
-		if ( ! self::$in_admin && CouponBrake::needs_admin( $kind, $id, $set ) ) {
+		if ( ! self::$in_admin && CouponBrake::needs_admin( $kind, $id, $set, 'undo' === $this->action ) ) {
 			return CouponBrake::message();
+		}
+		// 1.3.7 plan_media_upload: a new image (id 0) is downloaded only now, after the owner approved — the address is checked
+		// again here (public https host), and once more by WordPress on every redirect.
+		if ( 'media' === $kind && 0 === $id ) {
+			if ( null !== $expect || null === $set ) {
+				return 'A new image needs its address and no expected values.';
+			}
+			if ( ! current_user_can( 'upload_files' ) ) {
+				return 'This user may not upload files.';
+			}
+			return MediaSideload::url_problem( $set['url'] );
 		}
 		if ( 'coupon' === $kind && 0 === $id ) {
 			if ( null !== $expect || null === $set || empty( $set['code'] ) ) {
@@ -292,7 +313,7 @@ final class ApplyChangesAbility {
 			}
 			return wc_get_coupon_id_by_code( (string) $set['code'] ) ? 'A coupon with this code already exists.' : '';
 		}
-		if ( null === $expect || ( null === $set && 'coupon' !== $kind ) ) {
+		if ( null === $expect || ( null === $set && ! in_array( $kind, array( 'coupon', 'media' ), true ) ) ) {
 			return 'Expected and new values are required.';
 		}
 		if ( 'seo' === $kind && ( ! SeoAdapters::current()->supports_seo() || ( isset( $item['adapter'] ) && $item['adapter'] !== $adapter ) ) ) {
@@ -314,7 +335,32 @@ final class ApplyChangesAbility {
 		if ( 'coupon' === $kind && null === $set && ! empty( $now['values']['usage_count'] ) ) {
 			return sprintf( 'The coupon was already used in %d order(s), so it is not deleted.', (int) $now['values']['usage_count'] );
 		}
-		return StateUnits::holds( $kind, (array) $now['values'], $expect ) ? '' : 'Changed since the draft.';
+		if ( ! StateUnits::holds( $kind, (array) $now['values'], $expect ) ) {
+			return 'Changed since the draft.';
+		}
+		// Undo of an added image deletes it — never while the site uses it (a page, the logo, the site icon…).
+		if ( 'media' === $kind && null === $set && self::image_in_use( $id ) ) {
+			return 'The image is used on the site now, so it is not deleted. Remove it there first (or keep it).';
+		}
+		if ( 'template' === $kind && null !== $set ) {
+			return PageTemplates::problem( $id, $set['template'] ?? null, 'undo' === $this->action ? (string) ( $set['template'] ?? '' ) : '' );
+		}
+		return '';
+	}
+
+	/**
+	 * Whether an image is used anywhere on the site (content, featured images, logo, site icon).
+	 *
+	 * @param int $id Attachment id.
+	 */
+	private static function image_in_use( int $id ): bool {
+		$mods = get_theme_mods();
+		foreach ( array( get_option( 'site_logo' ), get_option( 'site_icon' ), is_array( $mods ) ? ( $mods['custom_logo'] ?? 0 ) : 0 ) as $used ) {
+			if ( is_numeric( $used ) && (int) $used === $id ) {
+				return true;
+			}
+		}
+		return ImageUsage::referenced( $id );
 	}
 
 	/**
