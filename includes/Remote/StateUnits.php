@@ -48,8 +48,39 @@ final class StateUnits {
 	/** Largest post_content a change set may write (bytes). */
 	public const MAX_CONTENT = 500000;
 
-	/** Product fields the remote route may change (no sale dates). */
-	public const PRODUCT_FIELDS = array( 'regular_price', 'sale_price', 'manage_stock', 'stock_quantity', 'stock_status' );
+	/** Product fields the remote route may change. Sale dates (1.3.8) travel as the site's local time 'Y-m-d H:i:s' or null. */
+	public const PRODUCT_FIELDS = array( 'regular_price', 'sale_price', 'manage_stock', 'stock_quantity', 'stock_status', 'date_on_sale_from', 'date_on_sale_to' );
+
+	/** Sale date fields of PRODUCT_FIELDS (local 'Y-m-d H:i:s' on the remote route, timestamps in WooCommerce). */
+	public const DATE_FIELDS = array( 'date_on_sale_from', 'date_on_sale_to' );
+
+	/**
+	 * A product field as the remote route shows it: sale dates as the site's local time, the rest as ProductFields reads it.
+	 *
+	 * @param \WC_Product $product Product.
+	 * @param string      $field   Field.
+	 * @return mixed
+	 */
+	public static function product_value( \WC_Product $product, string $field ) {
+		$value = ProductFields::read( $product, $field );
+		if ( in_array( $field, self::DATE_FIELDS, true ) ) {
+			return null === $value ? null : wp_date( 'Y-m-d H:i:s', (int) $value );
+		}
+		return $value;
+	}
+
+	/**
+	 * Local 'Y-m-d H:i:s' (site time zone) → timestamp; null stays null.
+	 *
+	 * @param mixed $value Value.
+	 */
+	public static function date_timestamp( $value ): ?int {
+		if ( null === $value || '' === $value ) {
+			return null;
+		}
+		$date = \DateTimeImmutable::createFromFormat( 'Y-m-d H:i:s', (string) $value, wp_timezone() );
+		return $date ? (int) $date->getTimestamp() : null;
+	}
 
 	public const SEO_PARTS = array( 'title', 'description' );
 
@@ -160,7 +191,7 @@ final class StateUnits {
 			}
 			$values = array();
 			foreach ( self::PRODUCT_FIELDS as $field ) {
-				$values[ $field ] = ProductFields::read( $product, $field );
+				$values[ $field ] = self::product_value( $product, $field );
 			}
 			return array(
 				'kind'      => $kind,
@@ -238,6 +269,12 @@ final class StateUnits {
 				return false;
 			}
 			if ( 'product' === $kind ) {
+				if ( in_array( $field, self::DATE_FIELDS, true ) ) {
+					if ( self::date_timestamp( $now[ $field ] ) !== self::date_timestamp( $value ) ) {
+						return false;
+					}
+					continue;
+				}
 				if ( ! ProductFields::same( $field, $now[ $field ], $value ) ) {
 					return false;
 				}
@@ -292,6 +329,16 @@ final class StateUnits {
 			}
 			if ( array_key_exists( 'stock_quantity', $set ) && null !== $set['stock_quantity'] && ! is_int( $set['stock_quantity'] ) ) {
 				return 'Invalid stock_quantity';
+			}
+			foreach ( self::DATE_FIELDS as $f ) {
+				if ( array_key_exists( $f, $set ) && null !== $set[ $f ] && ( ! is_string( $set[ $f ] ) || null === self::date_timestamp( $set[ $f ] ) || wp_date( 'Y-m-d H:i:s', (int) self::date_timestamp( $set[ $f ] ) ) !== $set[ $f ] ) ) {
+					return 'Invalid ' . $f . ' (local time Y-m-d H:i:s or null)';
+				}
+			}
+			$from = array_key_exists( 'date_on_sale_from', $set ) ? self::date_timestamp( $set['date_on_sale_from'] ) : null;
+			$to   = array_key_exists( 'date_on_sale_to', $set ) ? self::date_timestamp( $set['date_on_sale_to'] ) : null;
+			if ( null !== $from && null !== $to && $to <= $from ) {
+				return 'The sale must end after it starts.';
 			}
 		}
 		if ( 'seo' === $kind ) {
@@ -427,7 +474,7 @@ final class StateUnits {
 				}
 			);
 			foreach ( $fields as $field ) {
-				ProductFields::write( $product, $field, $set[ $field ] );
+				ProductFields::write( $product, $field, in_array( $field, self::DATE_FIELDS, true ) ? self::date_timestamp( $set[ $field ] ) : $set[ $field ] );
 			}
 			$product->save();
 			return $id;

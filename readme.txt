@@ -6,7 +6,7 @@ Tested up to: 7.1
 Requires PHP: 7.4
 WC requires at least: 8.0
 WC tested up to: 11.1
-Stable tag: 1.3.7
+Stable tag: 1.3.8
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -228,6 +228,9 @@ Optional and off by default, separate from the account and from your AI key. The
 
 == Changelog ==
 
+= 1.3.8 =
+* New: from Claude or ChatGPT, a sale can have a start and an end date (shown on the draft before you approve it; Undo restores the previous dates).
+
 = 1.3.7 =
 * New: from Claude, add an image to the media library from a public web address you give (after you approve the draft; Undo deletes it).
 * New: from Claude, give one page another template of your theme (for example a page without its title), with exact Undo.
@@ -325,6 +328,9 @@ Optional and off by default, separate from the account and from your AI key. The
 * First release on WordPress.org: chat in wp-admin, read tools, previews with Approve and Undo for prices, stock, categories, attributes, variations, product details, menus, pages, SEO, orders and coupons, CSV import, 5-day free trial without sign-up, then a free read-only plan; Subscribe from the plugin. Bulk previews show how many questions they count (10 products = 1 question). Slash commands, previews, Approve, Undo, voice input and Show me work for everyone, without a connection or subscription.
 
 == Upgrade Notice ==
+
+= 1.3.8 =
+Sales with a start and an end date from Claude or ChatGPT.
 
 = 1.3.7 =
 Images from a web address, page templates and the logo on block themes from Claude; coloured words and rounded images keep their look; more coupons approved in wp-admin.
