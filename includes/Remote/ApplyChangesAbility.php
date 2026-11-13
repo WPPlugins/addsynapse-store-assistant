@@ -45,6 +45,30 @@ final class ApplyChangesAbility {
 	private $action = '';
 
 	/**
+	 * Indexes of the items that create a term (kind term, id 0): product_terms items may point at them with "@N".
+	 *
+	 * @var int[]
+	 */
+	private $refs = array();
+
+	/**
+	 * Indexes of the term-creating items of a change set.
+	 *
+	 * @param array<int,mixed> $items Items.
+	 * @return int[]
+	 */
+	private static function term_refs( array $items ): array {
+		$out = array();
+		foreach ( array_values( $items ) as $i => $item ) {
+			$item = (array) $item;
+			if ( 'term' === ( $item['kind'] ?? '' ) && 0 === (int) ( $item['id'] ?? 0 ) ) {
+				$out[] = $i;
+			}
+		}
+		return $out;
+	}
+
+	/**
 	 * Runs a change set approved (or undone) on the wp-admin approval page by the logged-in administrator.
 	 *
 	 * @param array<string,mixed> $input Same shape as the ability input.
@@ -68,8 +92,9 @@ final class ApplyChangesAbility {
 	public static function conflicts( array $items ): array {
 		self::$in_admin = true;
 		try {
-			$self = new self();
-			$out  = array();
+			$self       = new self();
+			$self->refs = self::term_refs( $items );
+			$out        = array();
 			foreach ( array_values( $items ) as $i => $item ) {
 				$reason = $self->check( (array) $item, SeoAdapters::current()->key() );
 				if ( '' !== $reason ) {
@@ -97,7 +122,7 @@ final class ApplyChangesAbility {
 			self::NAME,
 			array(
 				'label'               => __( 'Apply an approved change set', 'addsynapse-store-assistant' ),
-				'description'         => 'Writes the values of a change set the shop owner approved (or restores them on Undo): price/stock fields of products and variations, SEO title/description, coupons, page/post content and status, featured images, navigation menus, and the look of the site (styles, Additional CSS, theme settings, widgets, templates, Elementor). Refuses everything if anything no longer holds the expected values. A coupon above 50% off is refused here: it is approved in wp-admin (hold-changes).',
+				'description'         => 'Writes the values of a change set the shop owner approved (or restores them on Undo): price/stock fields of products and variations, SEO title/description, coupons, page/post content and status, featured images, navigation menus, the categories, tags, brand and global attributes of a product (and the terms the change set creates for them), and the look of the site (styles, Additional CSS, theme settings, widgets, templates, Elementor). Refuses everything if anything no longer holds the expected values. A coupon above 50% off is refused here: it is approved in wp-admin (hold-changes).',
 				'category'            => AbilitiesRegistrar::CATEGORY,
 				'input_schema'        => array(
 					'type'                 => 'object',
@@ -168,8 +193,9 @@ final class ApplyChangesAbility {
 	public function execute( $input ) {
 		$this->action = (string) ( $input['action'] ?? '' );
 		$items        = array_values( (array) $input['items'] );
-		$conflicts = array();
-		$adapter   = SeoAdapters::current()->key();
+		$this->refs   = self::term_refs( $items );
+		$conflicts    = array();
+		$adapter      = SeoAdapters::current()->key();
 		foreach ( $items as $i => $item ) {
 			$conflict = $this->check( (array) $item, $adapter );
 			if ( '' !== $conflict ) {
@@ -199,8 +225,55 @@ final class ApplyChangesAbility {
 		$written = array();
 		$design  = array();
 		$notify  = array();
+		$created = array();
+		$kept    = array();
+		// 1.3.9: new terms first (product_terms items point at them with "@N"); the Undo of a created term last (deleted only
+		// once the products of this change set no longer use it).
+		$first = array();
+		$last  = array();
+		$rest  = array();
 		foreach ( $items as $index => $item ) {
+			$is_term = 'term' === (string) $item['kind'];
+			if ( $is_term && 0 === (int) $item['id'] ) {
+				$first[] = $index;
+			} elseif ( $is_term && ! is_array( $item['set'] ) ) {
+				$last[] = $index;
+			} else {
+				$rest[] = $index;
+			}
+		}
+		foreach ( array_merge( $first, $rest, $last ) as $index ) {
+			$item = $items[ $index ];
 			$kind = (string) $item['kind'];
+			if ( ProductTerms::handles( $kind ) ) {
+				$set    = is_array( $item['set'] ) ? $item['set'] : null;
+				$before = (int) $item['id'] ? ProductTerms::read( $kind, (int) $item['id'] ) : array();
+				$id     = (int) $item['id'];
+				if ( 'term' === $kind && null === $set ) {
+					if ( ! ProductTerms::delete_created( $id ) ) {
+						$kept[] = $index;
+					}
+				} elseif ( 'term' === $kind ) {
+					$id                = ProductTerms::write( $kind, 0, $set, (string) $input['changeset'] );
+					$created[ $index ] = $id;
+				} else {
+					foreach ( $set as $field => $value ) {
+						$set[ $field ] = ProductTerms::resolve( (string) $field, $value, $created );
+					}
+					ProductTerms::write( $kind, $id, $set, (string) $input['changeset'] );
+					$stored            = ProductTerms::read( $kind, $id );
+					$written[ $index ] = array_intersect_key( (array) $stored['values'], $set );
+				}
+				$ids[ $index ]  = $id;
+				$rows[ $index ] = array(
+					'id'   => $id,
+					'kind' => $kind,
+					'name' => ! empty( $before['exists'] ) ? (string) $before['name'] : (string) ( $set['name'] ?? '' ),
+					'from' => ProductTerms::for_log( $item['expect'] ),
+					'to'   => in_array( $index, $kept, true ) ? 'kept (in use)' : ProductTerms::for_log( $set ),
+				);
+				continue;
+			}//end if
 			if ( DesignUnits::handles( $kind ) ) {
 				$key    = (string) ( $item['key'] ?? '' );
 				$before = DesignUnits::read( $kind, $key );
@@ -218,9 +291,9 @@ final class ApplyChangesAbility {
 					ApprovalLog::add( (string) $input['changeset'], (string) $input['action'], (string) ( $input['summary'] ?? '' ), array(), 'failed: ' . mb_substr( $e->getMessage(), 0, 150 ) );
 					throw $e;
 				}
-				$design[] = array( $kind, $key, (array) $item['expect'] );
-				$ids[]    = 0;
-				$rows[]   = array(
+				$design[]       = array( $kind, $key, (array) $item['expect'] );
+				$ids[ $index ]  = 0;
+				$rows[ $index ] = array(
 					'id'   => 0,
 					'kind' => $kind,
 					'name' => ! empty( $before['exists'] ) ? (string) $before['name'] : $key,
@@ -229,15 +302,15 @@ final class ApplyChangesAbility {
 				);
 				continue;
 			}//end if
-			$set    = is_array( $item['set'] ) ? $item['set'] : null;
-			$before = (int) $item['id'] ? StateUnits::read(
+			$set           = is_array( $item['set'] ) ? $item['set'] : null;
+			$before        = (int) $item['id'] ? StateUnits::read(
 				array(
 					'kind' => $kind,
 					'id'   => (int) $item['id'],
 				)
 			) : array();
-			$id     = StateUnits::write( $kind, (int) $item['id'], $set );
-			$ids[]  = $id;
+			$id            = StateUnits::write( $kind, (int) $item['id'], $set );
+			$ids[ $index ] = $id;
 			if ( 'menu' === $kind ) {
 				// What the menu adapter stored (new items now have ids): AddSynapse expects exactly this on Undo.
 				$stored            = StateUnits::read(
@@ -248,7 +321,7 @@ final class ApplyChangesAbility {
 				);
 				$written[ $index ] = $stored['values'];
 			}
-			$rows[] = array(
+			$rows[ $index ] = array(
 				'id'   => $id,
 				'kind' => $kind,
 				'name' => ! empty( $before['exists'] ) ? (string) $before['name'] : (string) ( $set['code'] ?? '' ),
@@ -259,6 +332,9 @@ final class ApplyChangesAbility {
 				$notify[] = array( $id, $set, 0 === (int) $item['id'] );
 			}
 		}//end foreach
+		ksort( $ids );
+		ksort( $rows );
+		$rows = array_values( $rows );
 		ApprovalLog::add( (string) $input['changeset'], (string) $input['action'], (string) ( $input['summary'] ?? '' ), $rows, 'ok' );
 		// A coupon approved from AddSynapse: the site's administrator gets a short notice (security review 22/10/2026).
 		foreach ( $notify as $n ) {
@@ -266,9 +342,9 @@ final class ApplyChangesAbility {
 		}
 		return array(
 			'ok'      => true,
-			'ids'     => $ids,
+			'ids'     => array_values( $ids ),
 			'written' => $written,
-		);
+		) + ( $kept ? array( 'kept' => $kept ) : array() );
 	}
 
 	/**
@@ -284,6 +360,9 @@ final class ApplyChangesAbility {
 		$set    = is_array( $item['set'] ) ? $item['set'] : null;
 		if ( DesignUnits::handles( $kind ) ) {
 			return $this->check_design( $kind, (string) ( $item['key'] ?? '' ), $expect, $set );
+		}
+		if ( ProductTerms::handles( $kind ) ) {
+			return $this->check_terms( $kind, $id, $expect, $set );
 		}
 		if ( null !== $set ) {
 			$invalid = StateUnits::invalid( $kind, $set );
@@ -346,6 +425,45 @@ final class ApplyChangesAbility {
 			return PageTemplates::problem( $id, $set['template'] ?? null, 'undo' === $this->action ? (string) ( $set['template'] ?? '' ) : '' );
 		}
 		return '';
+	}
+
+	/**
+	 * Checks of a product_terms / term unit.
+	 *
+	 * @param string                   $kind   Kind.
+	 * @param int                      $id     Id.
+	 * @param array<string,mixed>|null $expect Expected values.
+	 * @param array<string,mixed>|null $set    New values.
+	 */
+	private function check_terms( string $kind, int $id, ?array $expect, ?array $set ): string {
+		if ( null !== $set ) {
+			$invalid = ProductTerms::invalid( $kind, $set, 'approve' === $this->action ? $this->refs : array() );
+			if ( '' !== $invalid ) {
+				return $invalid;
+			}
+		}
+		if ( 'term' === $kind && 0 === $id ) {
+			if ( null !== $expect || null === $set ) {
+				return 'A new term needs its taxonomy and name and no expected values.';
+			}
+			$object = get_taxonomy( (string) $set['taxonomy'] );
+			if ( ! $object || ! current_user_can( $object->cap->edit_terms ) ) {
+				return 'This user may not add terms here.';
+			}
+			$existing = \Addsynapse\StoreAssistant\Changesets\TermsPlanner::find_exact( (string) $set['name'], (string) $set['taxonomy'] );
+			return $existing instanceof \WP_Term ? sprintf( 'A term named "%s" already exists (#%d).', $existing->name, $existing->term_id ) : '';
+		}
+		if ( null === $expect || ( null === $set && 'term' !== $kind ) ) {
+			return 'Expected and new values are required.';
+		}
+		$now = ProductTerms::read( $kind, $id );
+		if ( empty( $now['exists'] ) ) {
+			return (string) ( $now['reason'] ?? 'Not found.' );
+		}
+		if ( ! ProductTerms::holds( $kind, (array) $now['values'], $expect ) ) {
+			return 'Changed since the draft.';
+		}
+		return null === $set ? '' : ProductTerms::problem( $kind, (array) $now['values'], $set );
 	}
 
 	/**

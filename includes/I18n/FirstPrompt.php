@@ -1,6 +1,6 @@
 <?php
 /**
- * The first prompt to paste into Claude, built in for languages translate.wordpress.org does not cover yet (1.3.6).
+ * The first prompt to paste into Claude or ChatGPT, built in for languages translate.wordpress.org does not cover yet (1.3.6).
  *
  * It is text the manager SENDS to the AI, so it should be in the manager's language even before a language pack exists.
  * The UI itself stays English + __() (languages/*.po).
@@ -22,8 +22,8 @@ final class FirstPrompt {
 	 */
 	private const BUILT_IN = array(
 		'el' => array(
-			'store' => 'Με το AddSynapse, πες μου τι μπορείς να κάνεις για το κατάστημά μου, με 5 παραδείγματα που μπορώ να δοκιμάσω τώρα.',
-			'site'  => 'Με το AddSynapse, πες μου τι μπορείς να κάνεις για το site μου, με 5 παραδείγματα που μπορώ να δοκιμάσω τώρα.',
+			'store' => 'Χρησιμοποίησε το Store Manager for WooCommerce και δείξε μου 3 προϊόντα από το κατάστημά μου.',
+			'site'  => 'Χρησιμοποίησε το Site Manager for WordPress και δείξε μου 3 σελίδες από το site μου.',
 		),
 	);
 

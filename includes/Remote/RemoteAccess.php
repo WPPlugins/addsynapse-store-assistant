@@ -48,6 +48,7 @@ final class RemoteAccess {
 		'addsynapse-assistant/search-products',
 		'addsynapse-assistant/get-product',
 		'addsynapse-assistant/list-categories',
+		ListTermsAbility::NAME,
 		'addsynapse-assistant/product-report',
 		'addsynapse-assistant/get-seo',
 		'addsynapse-assistant/describe-menus',
@@ -308,6 +309,7 @@ final class RemoteAccess {
 			return;
 		}
 		( new ListCategoriesAbility() )->register();
+		( new ListTermsAbility() )->register();
 		( new ApplyPricesAbility() )->register();
 		( new HoldChangesAbility() )->register();
 	}

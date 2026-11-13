@@ -47,10 +47,18 @@ final class Api {
 	 * The «Add to Claude» link with this site's address (an ordinary link the administrator's browser opens; nothing is sent
 	 * by the server).
 	 *
+	 * 1.3.9 (owner 12/11): «Connect to Claude» / «Connect to ChatGPT» add `ai=claude|chatgpt`, so AddSynapse sends the
+	 * manager back to the right AI app after the sign-in.
+	 *
 	 * @param string $site This site's address (home URL).
+	 * @param string $ai   'claude', 'chatgpt' or '' (AddSynapse asks).
 	 */
-	public static function claude_connect_url( string $site ): string {
-		return add_query_arg( 'site', rawurlencode( untrailingslashit( $site ) ), self::CLAUDE_CONNECT_URL );
+	public static function claude_connect_url( string $site, string $ai = '' ): string {
+		$args = array( 'site' => rawurlencode( untrailingslashit( $site ) ) );
+		if ( in_array( $ai, array( 'claude', 'chatgpt' ), true ) ) {
+			$args['ai'] = $ai;
+		}
+		return add_query_arg( $args, self::CLAUDE_CONNECT_URL );
 	}
 
 	/**

@@ -12,6 +12,8 @@
  *  - styles / css / setting / widgets / doc / kit: the site's look (Design\DesignUnits — site styles, Additional CSS, theme
  *             settings, widgets, pages / templates / template parts / Elementor documents, Elementor Site Settings), identified
  *             by a string `key` the site resolves itself.
+ *  - product_terms / term (1.3.9): categories, tags, brand and global attributes of one product, and the terms a change set
+ *             creates for them (Remote\ProductTerms).
  * product and coupon need WooCommerce; on a plain WordPress site they read as «not found».
  *
  * Reads return normalized values; writes take the same shape, so a change set is just expect(BEFORE)/set(AFTER).
@@ -37,7 +39,7 @@ defined( 'ABSPATH' ) || exit;
  */
 final class StateUnits {
 
-	public const KINDS = array( 'product', 'seo', 'coupon', 'content', 'featured', 'menu', 'template', 'media', 'styles', 'css', 'setting', 'widgets', 'doc', 'kit' );
+	public const KINDS = array( 'product', 'seo', 'coupon', 'content', 'featured', 'menu', 'template', 'media', 'styles', 'css', 'setting', 'widgets', 'doc', 'kit', 'product_terms', 'term' );
 
 	/** Content fields the remote route may change. */
 	public const CONTENT_FIELDS = array( 'title', 'excerpt', 'content', 'status' );
@@ -116,6 +118,9 @@ final class StateUnits {
 		$id   = (int) ( $item['id'] ?? 0 );
 		if ( DesignUnits::handles( $kind ) ) {
 			return DesignUnits::read( $kind, (string) ( $item['key'] ?? '' ) );
+		}
+		if ( ProductTerms::handles( $kind ) ) {
+			return ProductTerms::read( $kind, $id );
 		}
 		if ( in_array( $kind, array( 'product', 'coupon' ), true ) && ! Environment::has_woocommerce() ) {
 			return self::missing( $kind, $id, 'WooCommerce is not active on this site.' );
@@ -256,6 +261,9 @@ final class StateUnits {
 		if ( DesignUnits::handles( $kind ) ) {
 			return DesignUnits::holds( $kind, $now, $expect );
 		}
+		if ( ProductTerms::handles( $kind ) ) {
+			return ProductTerms::holds( $kind, $now, $expect );
+		}
 		if ( 'menu' === $kind ) {
 			$a = is_array( $now['menu'] ?? null ) ? $now['menu'] : array();
 			$b = is_array( $expect['menu'] ?? null ) ? $expect['menu'] : array();
@@ -302,6 +310,9 @@ final class StateUnits {
 	 * @param array<string,mixed> $set  Values.
 	 */
 	public static function invalid( string $kind, array $set ): string {
+		if ( ProductTerms::handles( $kind ) ) {
+			return ProductTerms::invalid( $kind, $set );
+		}
 		$fields  = array(
 			'product'  => self::PRODUCT_FIELDS,
 			'seo'      => self::SEO_PARTS,
@@ -340,7 +351,7 @@ final class StateUnits {
 			if ( null !== $from && null !== $to && $to <= $from ) {
 				return 'The sale must end after it starts.';
 			}
-		}
+		}//end if
 		if ( 'seo' === $kind ) {
 			foreach ( $set as $value ) {
 				if ( null !== $value && ( ! is_string( $value ) || mb_strlen( $value ) > 320 ) ) {
@@ -664,6 +675,9 @@ final class StateUnits {
 		}
 		if ( DesignUnits::handles( $kind ) ) {
 			return DesignUnits::for_log( $kind, $values );
+		}
+		if ( ProductTerms::handles( $kind ) ) {
+			return ProductTerms::for_log( $values );
 		}
 		if ( 'menu' === $kind ) {
 			return array( 'items' => isset( $values['menu']['items'] ) ? count( (array) $values['menu']['items'] ) : 0 );

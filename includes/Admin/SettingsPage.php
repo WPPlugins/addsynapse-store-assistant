@@ -259,7 +259,7 @@ final class SettingsPage {
 			echo '<p>' . esc_html( sprintf( __( 'Connected. Approved by %s.', 'addsynapse-store-assistant' ), (string) $status['detail']['user'] ) ) . '</p>';
 			echo '<p><a class="button" href="' . esc_url( HomePage::setup_url( 'mcp' ) ) . '">' . esc_html__( 'Setup steps', 'addsynapse-store-assistant' ) . '</a> ';
 		} else {
-			echo '<p>' . esc_html( 'site' === Environment::site_type() ? __( 'Not connected yet. Use your site from claude.ai or ChatGPT (beta), without an API key.', 'addsynapse-store-assistant' ) : __( 'Not connected yet. Use your store from claude.ai or ChatGPT (beta), without an API key.', 'addsynapse-store-assistant' ) ) . '</p>';
+			echo '<p>' . esc_html( 'site' === Environment::site_type() ? __( 'Not connected yet. Use your site from Claude or ChatGPT, without an API key.', 'addsynapse-store-assistant' ) : __( 'Not connected yet. Use your store from Claude or ChatGPT, without an API key.', 'addsynapse-store-assistant' ) ) . '</p>';
 			echo '<p class="adsa-settings__actions"><a class="button button-primary" href="' . esc_url( HomePage::setup_url( 'mcp' ) ) . '">' . esc_html__( 'Connect to Claude or ChatGPT', 'addsynapse-store-assistant' ) . '</a> ';
 		}
 		/* translators: %d: number of entries */

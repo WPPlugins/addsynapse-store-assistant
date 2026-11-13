@@ -6,7 +6,7 @@ Tested up to: 7.1
 Requires PHP: 7.4
 WC requires at least: 8.0
 WC tested up to: 11.1
-Stable tag: 1.3.8
+Stable tag: 1.3.9
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -33,7 +33,7 @@ Connect your site once and use it from the Claude you already pay for, on claude
 * **A log on your own site.** Every write is listed in **Settings → Approval log**, and you can disconnect at any time with **Disconnect AddSynapse** on **AddSynapse → Home**.
 * **Locked down by design.** The connection uses a key this plugin creates when you confirm, valid only on its own store routes (no users, plugins, settings or other REST routes), and every write needs a single-use approval signed at the moment you pressed Approve. It is not a WordPress Application Password: like WooCommerce's own REST API keys, it is a separate key that only this plugin accepts, and you revoke it here.
 
-**ChatGPT (beta).** The same connection works from ChatGPT as a custom MCP connector (developer mode, depending on your ChatGPT plan); the wizard shows the steps. See the FAQ.
+**ChatGPT.** The same connection works from ChatGPT: «Store Manager for WooCommerce» is an app in ChatGPT, on any ChatGPT plan. In the wizard press **Connect to ChatGPT** (or **Connect to Claude**).
 
 This way needs a free AddSynapse account (created during the connection). It includes a daily allowance of actions; larger allowances are available on paid plans at addsynapse.com. See **External services** below for exactly what is sent.
 
@@ -107,7 +107,7 @@ Every approved change keeps the values from before. Undo writes them back — fr
 
 = Does it work with ChatGPT? =
 
-Yes, in two ways. The wp-admin chat works with an OpenAI key. And you can use your site from ChatGPT through AddSynapse (beta): add https://api.addsynapse.com/mcp as a custom connector in ChatGPT's developer mode — the wizard on **AddSynapse → Home** shows each step. Developer mode depends on your ChatGPT plan. If ChatGPT shows no Approve button for a draft, approve it from the link in the reply (your AddSynapse account).
+Yes, in two ways. The wp-admin chat works with an OpenAI key. And you can use your site from ChatGPT through AddSynapse: on **AddSynapse → Home** press **Connect to ChatGPT**, sign in to AddSynapse (or create a free account) and confirm on your site. «Store Manager for WooCommerce» is an app in ChatGPT and works on any ChatGPT plan. If ChatGPT shows no Approve button for a draft, approve it from the link in the reply (your AddSynapse account).
 
 = Can I connect more than one store? =
 
@@ -206,7 +206,7 @@ With an account, at most once a day and only while a user opens the plugin's own
 
 = 5. AddSynapse for Claude and other AI apps — addsynapse.com (after you approve the connection; one setup question before) =
 
-Optional: use your site from Claude or ChatGPT. "Connect to AddSynapse" opens app.addsynapse.com with this site's address in the link. While nothing is set up, for an administrator (after activation or on the setup screen, at most every 10 minutes), the plugin asks whether you started in Claude: `GET https://api.addsynapse.com/api/onboarding/pending?site=<site address>` (site address only). If yes, the browser continues there; nothing connects without Yes, connect.
+Optional: use your site from Claude or ChatGPT. "Connect to Claude" and "Connect to ChatGPT" open app.addsynapse.com with this site's address and the chosen AI app (`ai=claude` or `ai=chatgpt`) in the link. While nothing is set up, for an administrator (after activation or on the setup screen, at most every 10 minutes), the plugin asks whether you started in Claude: `GET https://api.addsynapse.com/api/onboarding/pending?site=<site address>` (site address only). If yes, the browser continues there; nothing connects without Yes, connect.
 
 You start the connection from your AI chat. It opens this plugin's page on your site. For a logged-in administrator only, that page asks AddSynapse which account started the connection (`POST https://api.addsynapse.com/api/v1/assistant/relay-claim/preview`: the one-time code and site address; answer: account name and masked email) and asks you to confirm it. Only if you press Connect does the plugin create a random connection key for AddSynapse, acting as you, and send it once from your server over HTTPS (`POST https://api.addsynapse.com/api/v1/assistant/relay-claim`: key, user name, site address, one-time code — never in a web address); Cancel creates nothing. The site keeps only a keyed hash of the key. A key AddSynapse does not use within 15 minutes is revoked. Sites connected with an earlier version keep their WordPress Application Password until they reconnect.
 
@@ -227,6 +227,12 @@ Optional and off by default, separate from the account and from your AI key. The
 * AddSynapse privacy policy: https://addsynapse.com/privacy
 
 == Changelog ==
+
+= 1.3.9 =
+* New: two clear buttons on the setup screen, «Connect to Claude» and «Connect to ChatGPT». AddSynapse sends you back to the AI app you chose.
+* Changed: ChatGPT no longer needs developer mode: «Store Manager for WooCommerce» is a published ChatGPT app, one click from the setup screen.
+* Changed: the first prompt after setup names the app («Use Store Manager for WooCommerce to show me 3 products from my store»), so Claude and ChatGPT use it right away.
+* New: from Claude or ChatGPT, change the categories, tags, brand and attributes of a product, and add a missing category or tag. Every change is a draft you approve; Undo puts the previous terms back and removes a new term nothing else uses.
 
 = 1.3.8 =
 * New: from Claude or ChatGPT, a sale can have a start and an end date (shown on the draft before you approve it; Undo restores the previous dates).
@@ -328,6 +334,9 @@ Optional and off by default, separate from the account and from your AI key. The
 * First release on WordPress.org: chat in wp-admin, read tools, previews with Approve and Undo for prices, stock, categories, attributes, variations, product details, menus, pages, SEO, orders and coupons, CSV import, 5-day free trial without sign-up, then a free read-only plan; Subscribe from the plugin. Bulk previews show how many questions they count (10 products = 1 question). Slash commands, previews, Approve, Undo, voice input and Show me work for everyone, without a connection or subscription.
 
 == Upgrade Notice ==
+
+= 1.3.9 =
+Connect to Claude or ChatGPT with one button each; ChatGPT without developer mode; product categories, tags, brand and attributes from Claude or ChatGPT.
 
 = 1.3.8 =
 Sales with a start and an end date from Claude or ChatGPT.

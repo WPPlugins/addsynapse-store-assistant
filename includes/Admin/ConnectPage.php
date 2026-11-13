@@ -27,8 +27,8 @@ final class ConnectPage {
 	/** Claude Directory page of the AddSynapse connector. */
 	public const CLAUDE_URL = 'https://claude.ai/directory/connectors/store-manager-for-woocommerce';
 
-	/** ChatGPT (connectors are added under Settings → Apps). */
-	public const CHATGPT_URL = 'https://chatgpt.com/';
+	/** «Store Manager for WooCommerce» in ChatGPT's app directory (published 11/11/2026). */
+	public const CHATGPT_URL = 'https://chatgpt.com/plugins/plugin_asdk_app_6ad08cebd17c819184df35257cff15b1';
 
 	/**
 	 * Address shown to the AI app (filterable for development hubs).
