@@ -6,7 +6,7 @@ Tested up to: 7.1
 Requires PHP: 7.4
 WC requires at least: 8.0
 WC tested up to: 11.1
-Stable tag: 1.3.9
+Stable tag: 1.3.10
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -227,6 +227,11 @@ Optional and off by default, separate from the account and from your AI key. The
 * AddSynapse privacy policy: https://addsynapse.com/privacy
 
 == Changelog ==
+
+= 1.3.10 =
+* New: from Claude or ChatGPT, rewrite the name, description and short description of your products (several products in one draft).
+* New: from Claude or ChatGPT, change the custom fields of a product, the alt text, title, caption and description of images, and write a new post or page (created when you approve it, as a draft or published). Every change is a draft you approve; Undo puts the previous values back and moves a new post to the trash.
+* Security: every text written from AddSynapse (on Approve and on Undo) is cleaned: scripts and styles are removed with their content and the HTML is filtered like a post by an author. Undo puts back exactly the text your site had before the change.
 
 = 1.3.9 =
 * New: two clear buttons on the setup screen, «Connect to Claude» and «Connect to ChatGPT». AddSynapse sends you back to the AI app you chose.

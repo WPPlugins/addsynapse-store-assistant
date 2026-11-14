@@ -155,7 +155,8 @@ final class MediaFinder {
 		return array(
 			'id'          => $id,
 			'title'       => mb_substr( html_entity_decode( (string) $post->post_title, ENT_QUOTES, 'UTF-8' ), 0, 120 ),
-			'alt'         => mb_substr( (string) get_post_meta( $id, '_wp_attachment_image_alt', true ), 0, 160 ),
+			'alt'         => mb_substr( (string) get_post_meta( $id, '_wp_attachment_image_alt', true ), 0, 250 ),
+			'caption'     => mb_substr( wp_strip_all_tags( (string) $post->post_excerpt ), 0, 300 ),
 			'filename'    => wp_basename( (string) get_post_meta( $id, '_wp_attached_file', true ) ),
 			'thumb'       => $thumb ? (string) $thumb : '',
 			'url'         => $large ? (string) $large : (string) wp_get_attachment_url( $id ),

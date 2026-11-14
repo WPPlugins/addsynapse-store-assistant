@@ -139,6 +139,8 @@ function addsynapse_assistant_uninstall_site() {
 	}
 	// Terms a change set created (1.3.9) keep only our marker; the terms themselves stay.
 	delete_metadata( 'term', 0, '_addsynapse_assistant_created', '', true );
+	// Posts and pages a change set created (1.3.10) keep only our marker; the posts themselves stay.
+	delete_metadata( 'post', 0, '_addsynapse_assistant_created', '', true );
 	// Orders created by a change on HPOS stores keep their meta in the WooCommerce orders meta table.
 	$orders_meta = $wpdb->prefix . 'wc_orders_meta';
 	if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $wpdb->esc_like( $orders_meta ) ) ) === $orders_meta ) { // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching

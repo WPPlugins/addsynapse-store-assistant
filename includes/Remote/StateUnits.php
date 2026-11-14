@@ -14,6 +14,8 @@
  *             by a string `key` the site resolves itself.
  *  - product_terms / term (1.3.9): categories, tags, brand and global attributes of one product, and the terms a change set
  *             creates for them (Remote\ProductTerms).
+ *  - product_meta / media_text / post (1.3.10): custom fields of a product, alt/title/caption/description of a media item,
+ *             a new post or page (Remote\FieldUnits); product_text: name, description and short description of a product.
  * product and coupon need WooCommerce; on a plain WordPress site they read as «not found».
  *
  * Reads return normalized values; writes take the same shape, so a change set is just expect(BEFORE)/set(AFTER).
@@ -39,7 +41,7 @@ defined( 'ABSPATH' ) || exit;
  */
 final class StateUnits {
 
-	public const KINDS = array( 'product', 'seo', 'coupon', 'content', 'featured', 'menu', 'template', 'media', 'styles', 'css', 'setting', 'widgets', 'doc', 'kit', 'product_terms', 'term' );
+	public const KINDS = array( 'product', 'seo', 'coupon', 'content', 'featured', 'menu', 'template', 'media', 'styles', 'css', 'setting', 'widgets', 'doc', 'kit', 'product_terms', 'term', 'product_meta', 'media_text', 'post', 'product_text' );
 
 	/** Content fields the remote route may change. */
 	public const CONTENT_FIELDS = array( 'title', 'excerpt', 'content', 'status' );
@@ -121,6 +123,9 @@ final class StateUnits {
 		}
 		if ( ProductTerms::handles( $kind ) ) {
 			return ProductTerms::read( $kind, $id );
+		}
+		if ( FieldUnits::handles( $kind ) ) {
+			return FieldUnits::read( $kind, $id );
 		}
 		if ( in_array( $kind, array( 'product', 'coupon' ), true ) && ! Environment::has_woocommerce() ) {
 			return self::missing( $kind, $id, 'WooCommerce is not active on this site.' );
@@ -264,6 +269,9 @@ final class StateUnits {
 		if ( ProductTerms::handles( $kind ) ) {
 			return ProductTerms::holds( $kind, $now, $expect );
 		}
+		if ( FieldUnits::handles( $kind ) ) {
+			return FieldUnits::holds( $kind, $now, $expect );
+		}
 		if ( 'menu' === $kind ) {
 			$a = is_array( $now['menu'] ?? null ) ? $now['menu'] : array();
 			$b = is_array( $expect['menu'] ?? null ) ? $expect['menu'] : array();
@@ -312,6 +320,9 @@ final class StateUnits {
 	public static function invalid( string $kind, array $set ): string {
 		if ( ProductTerms::handles( $kind ) ) {
 			return ProductTerms::invalid( $kind, $set );
+		}
+		if ( FieldUnits::handles( $kind ) ) {
+			return FieldUnits::invalid( $kind, $set );
 		}
 		$fields  = array(
 			'product'  => self::PRODUCT_FIELDS,
@@ -425,11 +436,23 @@ final class StateUnits {
 	 * @param string                   $kind Kind.
 	 * @param int                      $id   Id (0 = new coupon).
 	 * @param array<string,mixed>|null $set  Values (null = delete coupon).
+	 * @param string                   $changeset Change set id (content: TextGuard hashes of the previous texts).
+	 * @param bool                     $undo      Undo (content: only the site's own previous texts stay as they were).
 	 * @return int The id written.
 	 * @throws \RuntimeException On a write that cannot be done.
 	 */
-	public static function write( string $kind, int $id, ?array $set ): int {
+	public static function write( string $kind, int $id, ?array $set, string $changeset = '', bool $undo = false ): int {
 		if ( 'content' === $kind ) {
+			$texts = array_intersect_key( (array) $set, array_flip( array( 'title', 'excerpt', 'content' ) ) );
+			if ( ! $undo && $texts ) {
+				$now = self::read(
+					array(
+						'kind' => $kind,
+						'id'   => $id,
+					)
+				);
+				TextGuard::remember( $id, $changeset, $kind, array_intersect_key( (array) ( $now['values'] ?? array() ), $texts ) );
+			}
 			$map  = array(
 				'title'   => 'post_title',
 				'excerpt' => 'post_excerpt',
@@ -438,7 +461,8 @@ final class StateUnits {
 			);
 			$post = array( 'ID' => $id );
 			foreach ( (array) $set as $field => $value ) {
-				$post[ $map[ $field ] ] = (string) $value;
+				// 1.3.10: texts cleaned (script/style removed, wp_kses_post) on Approve and on Undo (TextGuard).
+				$post[ $map[ $field ] ] = 'status' === $field ? (string) $value : TextGuard::value( (string) $value, true, $undo, $id, $changeset, $kind . ':' . $field );
 			}
 			$result = wp_update_post( wp_slash( $post ), true );
 			if ( is_wp_error( $result ) ) {
@@ -446,7 +470,7 @@ final class StateUnits {
 				throw new \RuntimeException( $result->get_error_message() );
 			}
 			return $id;
-		}
+		}//end if
 		if ( 'template' === $kind ) {
 			PageTemplates::write( $id, (string) $set['template'] );
 			return $id;
@@ -678,6 +702,9 @@ final class StateUnits {
 		}
 		if ( ProductTerms::handles( $kind ) ) {
 			return ProductTerms::for_log( $values );
+		}
+		if ( FieldUnits::handles( $kind ) ) {
+			return FieldUnits::for_log( $values );
 		}
 		if ( 'menu' === $kind ) {
 			return array( 'items' => isset( $values['menu']['items'] ) ? count( (array) $values['menu']['items'] ) : 0 );

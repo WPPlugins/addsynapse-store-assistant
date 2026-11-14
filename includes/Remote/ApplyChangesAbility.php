@@ -122,7 +122,7 @@ final class ApplyChangesAbility {
 			self::NAME,
 			array(
 				'label'               => __( 'Apply an approved change set', 'addsynapse-store-assistant' ),
-				'description'         => 'Writes the values of a change set the shop owner approved (or restores them on Undo): price/stock fields of products and variations, SEO title/description, coupons, page/post content and status, featured images, navigation menus, the categories, tags, brand and global attributes of a product (and the terms the change set creates for them), and the look of the site (styles, Additional CSS, theme settings, widgets, templates, Elementor). Refuses everything if anything no longer holds the expected values. A coupon above 50% off is refused here: it is approved in wp-admin (hold-changes).',
+				'description'         => 'Writes the values of a change set the shop owner approved (or restores them on Undo): price/stock fields of products and variations, SEO title/description, coupons, page/post content and status, featured images, navigation menus, the name, description and short description of products, custom fields of products, alt text / title / caption / description of media items, new posts and pages (Undo moves them to the trash), the categories, tags, brand and global attributes of a product (and the terms the change set creates for them), and the look of the site (styles, Additional CSS, theme settings, widgets, templates, Elementor). Refuses everything if anything no longer holds the expected values. A coupon above 50% off is refused here: it is approved in wp-admin (hold-changes).',
 				'category'            => AbilitiesRegistrar::CATEGORY,
 				'input_schema'        => array(
 					'type'                 => 'object',
@@ -274,6 +274,26 @@ final class ApplyChangesAbility {
 				);
 				continue;
 			}//end if
+			if ( FieldUnits::handles( $kind ) ) {
+				// 1.3.10: custom fields, media texts, a new post (created on Approve, trashed on Undo).
+				$set    = is_array( $item['set'] ) ? $item['set'] : null;
+				$id     = (int) $item['id'];
+				$before = $id ? FieldUnits::read( $kind, $id ) : array();
+				$id     = FieldUnits::write( $kind, $id, $set, (string) $input['changeset'], 'undo' === $this->action );
+				if ( null !== $set ) {
+					$stored            = FieldUnits::read( $kind, $id );
+					$written[ $index ] = array_intersect_key( (array) $stored['values'], $set ) + array_fill_keys( array_keys( $set ), null );
+				}
+				$ids[ $index ]  = $id;
+				$rows[ $index ] = array(
+					'id'   => $id,
+					'kind' => $kind,
+					'name' => ! empty( $before['exists'] ) ? (string) $before['name'] : (string) ( $set['title'] ?? '' ),
+					'from' => FieldUnits::for_log( $item['expect'] ),
+					'to'   => null === $set ? 'trash' : FieldUnits::for_log( $set ),
+				);
+				continue;
+			}//end if
 			if ( DesignUnits::handles( $kind ) ) {
 				$key    = (string) ( $item['key'] ?? '' );
 				$before = DesignUnits::read( $kind, $key );
@@ -309,8 +329,18 @@ final class ApplyChangesAbility {
 					'id'   => (int) $item['id'],
 				)
 			) : array();
-			$id            = StateUnits::write( $kind, (int) $item['id'], $set );
+			$id            = StateUnits::write( $kind, (int) $item['id'], $set, (string) $input['changeset'], 'undo' === $this->action );
 			$ids[ $index ] = $id;
+			if ( 'content' === $kind && null !== $set ) {
+				// 1.3.10: the texts as WordPress stored them (cleaned): AddSynapse records these as the values after Approve.
+				$stored            = StateUnits::read(
+					array(
+						'kind' => $kind,
+						'id'   => $id,
+					)
+				);
+				$written[ $index ] = array_intersect_key( (array) $stored['values'], $set );
+			}
 			if ( 'menu' === $kind ) {
 				// What the menu adapter stored (new items now have ids): AddSynapse expects exactly this on Undo.
 				$stored            = StateUnits::read(
@@ -363,6 +393,9 @@ final class ApplyChangesAbility {
 		}
 		if ( ProductTerms::handles( $kind ) ) {
 			return $this->check_terms( $kind, $id, $expect, $set );
+		}
+		if ( FieldUnits::handles( $kind ) ) {
+			return FieldUnits::problem( $kind, $id, $expect, $set );
 		}
 		if ( null !== $set ) {
 			$invalid = StateUnits::invalid( $kind, $set );
