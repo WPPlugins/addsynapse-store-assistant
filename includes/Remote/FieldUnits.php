@@ -9,6 +9,7 @@
  *    cleaned by TextGuard (script/style removed, wp_kses_post); Undo writes back the exact previous HTML (TextGuard hash).
  *  - post: a NEW post or page (id 0 → created on Approve, as a draft or published, marked as ours). Undo moves exactly
  *    that post to the trash (never deletes it for good), and only a post this plugin created.
+ *  - product_new (1.3.11): a NEW simple product, created on Approve and trashed on Undo (see ProductCreate).
  *
  * @package Addsynapse\StoreAssistant
  */
@@ -24,7 +25,7 @@ defined( 'ABSPATH' ) || exit;
  */
 final class FieldUnits {
 
-	public const KINDS = array( 'product_meta', 'media_text', 'post', 'product_text' );
+	public const KINDS = array( 'product_meta', 'media_text', 'post', 'product_text', ProductCreate::KIND );
 
 	public const TEXT_FIELDS = array( 'name', 'description', 'short_description' );
 	public const MAX_NAME    = 400;
@@ -238,6 +239,9 @@ final class FieldUnits {
 	 * @return array<string,mixed>
 	 */
 	public static function read( string $kind, int $id ): array {
+		if ( ProductCreate::KIND === $kind ) {
+			return ProductCreate::read( $id );
+		}
 		if ( 'product_meta' === $kind ) {
 			$post = self::product_post( $id );
 			if ( null === $post ) {
@@ -306,6 +310,9 @@ final class FieldUnits {
 	 * @param array<string,mixed> $expect Expected values.
 	 */
 	public static function holds( string $kind, array $now, array $expect ): bool {
+		if ( ProductCreate::KIND === $kind ) {
+			return ProductCreate::holds( $now, $expect );
+		}
 		if ( 'post' === $kind ) {
 			return ! isset( $expect['type'] ) || ( $now['type'] ?? null ) === $expect['type'];
 		}
@@ -333,6 +340,9 @@ final class FieldUnits {
 	public static function invalid( string $kind, array $set ): string {
 		if ( ! $set ) {
 			return 'Nothing to change.';
+		}
+		if ( ProductCreate::KIND === $kind ) {
+			return ProductCreate::invalid( $set );
 		}
 		if ( 'product_meta' === $kind ) {
 			if ( count( $set ) > 50 ) {
@@ -427,6 +437,9 @@ final class FieldUnits {
 	 * @param array<string,mixed>|null $set    New values.
 	 */
 	public static function problem( string $kind, int $id, ?array $expect, ?array $set ): string {
+		if ( ProductCreate::KIND === $kind ) {
+			return ProductCreate::problem( $id, $expect, $set );
+		}
 		if ( null !== $set ) {
 			$invalid = self::invalid( $kind, $set );
 			if ( '' !== $invalid ) {
@@ -481,6 +494,9 @@ final class FieldUnits {
 	 * @throws \RuntimeException When WordPress refuses.
 	 */
 	public static function write( string $kind, int $id, ?array $set, string $changeset, bool $undo = false ): int {
+		if ( ProductCreate::KIND === $kind ) {
+			return ProductCreate::write( $id, $set, $changeset );
+		}
 		if ( 'product_text' === $kind ) {
 			$product = self::text_product( $id );
 			if ( null === $product ) {

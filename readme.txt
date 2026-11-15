@@ -6,7 +6,7 @@ Tested up to: 7.1
 Requires PHP: 7.4
 WC requires at least: 8.0
 WC tested up to: 11.1
-Stable tag: 1.3.10
+Stable tag: 1.3.11
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -227,6 +227,9 @@ Optional and off by default, separate from the account and from your AI key. The
 * AddSynapse privacy policy: https://addsynapse.com/privacy
 
 == Changelog ==
+
+= 1.3.11 =
+* New: from Claude or ChatGPT, add new products to your shop (simple products: name, price, sale price, description, SKU, stock, existing categories and an image from your media library), up to 10 in one draft. Nothing is created until you press Approve; Undo moves those products to the trash.
 
 = 1.3.10 =
 * New: from Claude or ChatGPT, rewrite the name, description and short description of your products (several products in one draft).

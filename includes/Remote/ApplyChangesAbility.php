@@ -288,7 +288,7 @@ final class ApplyChangesAbility {
 				$rows[ $index ] = array(
 					'id'   => $id,
 					'kind' => $kind,
-					'name' => ! empty( $before['exists'] ) ? (string) $before['name'] : (string) ( $set['title'] ?? '' ),
+					'name' => ! empty( $before['exists'] ) ? (string) $before['name'] : (string) ( $set['title'] ?? $set['name'] ?? '' ),
 					'from' => FieldUnits::for_log( $item['expect'] ),
 					'to'   => null === $set ? 'trash' : FieldUnits::for_log( $set ),
 				);
