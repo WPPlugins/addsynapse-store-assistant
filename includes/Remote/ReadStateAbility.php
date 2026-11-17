@@ -30,7 +30,7 @@ final class ReadStateAbility {
 			self::NAME,
 			array(
 				'label'               => __( 'Current values for a change set', 'addsynapse-store-assistant' ),
-				'description'         => 'Returns the current price/stock fields of products or variations, the SEO title and meta description (active SEO plugin) of products, pages or posts, coupons (by id or code), the title/excerpt/content/status and featured image of pages and posts, navigation menus, and the look of the site (styles, Additional CSS, theme settings, widgets, templates, Elementor). Read-only.',
+				'description'         => 'Returns the current price/stock fields of products or variations, the SEO title, meta description and focus keyword (active SEO plugin) of products, pages or posts, coupons (by id or code), the title/excerpt/content/status and featured image of pages and posts, navigation menus, and the look of the site (styles, Additional CSS, theme settings, widgets, templates, Elementor). Read-only.',
 				'category'            => AbilitiesRegistrar::CATEGORY,
 				'input_schema'        => array(
 					'type'                 => 'object',
@@ -110,6 +110,8 @@ final class ReadStateAbility {
 				'key'      => $adapter->key(),
 				'label'    => $adapter->label(),
 				'supports' => $adapter->supports_seo(),
+				// 1.3.12: the focus keyword is read and written on the remote route too.
+				'parts'    => $adapter->supports_seo() ? StateUnits::SEO_PARTS : array(),
 			),
 		);
 	}

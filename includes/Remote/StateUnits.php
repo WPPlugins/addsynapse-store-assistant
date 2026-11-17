@@ -86,7 +86,17 @@ final class StateUnits {
 		return $date ? (int) $date->getTimestamp() : null;
 	}
 
-	public const SEO_PARTS = array( 'title', 'description' );
+	/**
+	 * SEO parts of the remote route. focus_keyword (1.3.12) = the raw stored value: Rank Math keeps all keywords
+	 * comma-separated (the first one is the primary), Yoast one keyword. AddSynapse sends the whole new value (secondary
+	 * Rank Math keywords kept) and Undo writes back exactly the old row (null = absent).
+	 */
+	public const SEO_PARTS = array( 'title', 'description', 'focus_keyword' );
+
+	/**
+	 * Longest focus keyword value accepted (Rank Math keeps several keywords in one row).
+	 */
+	public const FOCUS_KEYWORD_MAX = 500;
 
 	public const COUPON_FIELDS = array(
 		'code',
@@ -364,7 +374,14 @@ final class StateUnits {
 			}
 		}//end if
 		if ( 'seo' === $kind ) {
-			foreach ( $set as $value ) {
+			foreach ( $set as $field => $value ) {
+				if ( 'focus_keyword' === $field ) {
+					$invalid = self::focus_keyword_problem( $value );
+					if ( '' !== $invalid ) {
+						return $invalid;
+					}
+					continue;
+				}
 				if ( null !== $value && ( ! is_string( $value ) || mb_strlen( $value ) > 320 ) ) {
 					return 'SEO texts must be strings of at most 320 characters.';
 				}
@@ -636,6 +653,25 @@ final class StateUnits {
 				return;
 		}
 		$coupon->{'set_' . $field}( $value );
+	}
+
+	/**
+	 * Why a focus keyword value may not be written ('' = it may): plain text on one line, no HTML, at most
+	 * FOCUS_KEYWORD_MAX characters (null = remove the row, the Undo of a keyword that was absent).
+	 *
+	 * @param mixed $value Value.
+	 */
+	public static function focus_keyword_problem( $value ): string {
+		if ( null === $value ) {
+			return '';
+		}
+		if ( ! is_string( $value ) || mb_strlen( $value ) > self::FOCUS_KEYWORD_MAX ) {
+			return 'The focus keyword must be a string of at most ' . self::FOCUS_KEYWORD_MAX . ' characters.';
+		}
+		if ( ( '' !== $value && '' === wp_check_invalid_utf8( $value ) ) || preg_match( '/[<>\x00-\x1F\x7F]/u', $value ) ) {
+			return 'The focus keyword must be plain text on one line.';
+		}
+		return '';
 	}
 
 	/**

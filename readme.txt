@@ -6,7 +6,7 @@ Tested up to: 7.1
 Requires PHP: 7.4
 WC requires at least: 8.0
 WC tested up to: 11.1
-Stable tag: 1.3.11
+Stable tag: 1.3.12
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -227,6 +227,9 @@ Optional and off by default, separate from the account and from your AI key. The
 * AddSynapse privacy policy: https://addsynapse.com/privacy
 
 == Changelog ==
+
+= 1.3.12 =
+* New: from Claude or ChatGPT, the SEO focus keyword of products, pages and posts is saved too (Rank Math: the main keyword changes, your other keywords stay; Yoast SEO: the focus keyphrase). Nothing changes until you press Approve; Undo puts back exactly the keywords you had before.
 
 = 1.3.11 =
 * New: from Claude or ChatGPT, add new products to your shop (simple products: name, price, sale price, description, SKU, stock, existing categories and an image from your media library), up to 10 in one draft. Nothing is created until you press Approve; Undo moves those products to the trash.
