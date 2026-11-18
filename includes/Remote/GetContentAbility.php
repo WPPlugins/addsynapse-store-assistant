@@ -31,7 +31,7 @@ final class GetContentAbility {
 			self::NAME,
 			array(
 				'label'               => __( 'One page or post', 'addsynapse-store-assistant' ),
-				'description'         => 'One page or post: title, excerpt, status, link, its content (text summary and the stored content), SEO title/description and featured image. Read-only.',
+				'description'         => 'One page, post or custom content item (portfolio, event, testimonial…): title, excerpt, status, link, its content (text summary and the stored content), SEO title/description and featured image. Read-only.',
 				'category'            => AbilitiesRegistrar::CATEGORY,
 				'input_schema'        => array(
 					'type'                 => 'object',
@@ -66,6 +66,9 @@ final class GetContentAbility {
 	 */
 	public function execute( $input ) {
 		$post = StateUnits::editable_post( (int) ( $input['id'] ?? 0 ) );
+		if ( null !== $post && 'product' === $post->post_type ) {
+			return new \WP_Error( 'addsynapse_assistant_content_type', 'This id is a product: use get_product (and the product tools to change it).' );
+		}
 		if ( null === $post ) {
 			return new \WP_Error( 'addsynapse_assistant_not_found', 'Page or post not found (or not editable).' );
 		}

@@ -142,6 +142,9 @@ final class StateUnits {
 		}
 		if ( 'content' === $kind || 'featured' === $kind ) {
 			$post = self::editable_post( $id );
+			if ( null !== $post && 'content' === $kind && 'product' === $post->post_type ) {
+				return self::missing( $kind, $id, 'This id is a product: change it with the product tools.' );
+			}
 			if ( null === $post ) {
 				return self::missing( $kind, $id, 'Page or post not found (or not editable).' );
 			}
@@ -159,7 +162,7 @@ final class StateUnits {
 				'type'   => (string) $post->post_type,
 				'values' => $values,
 			);
-		}
+		}//end if
 		if ( 'template' === $kind ) {
 			$post = self::editable_post( $id );
 			if ( null === $post ) {

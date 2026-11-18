@@ -24,6 +24,11 @@ final class ElementorDoc {
 	public const MAX_NEW = 30;
 
 	/**
+	 * How to add to a page built with sections and columns (said back to the AI).
+	 */
+	public const SECTIONS_HELP = 'This page is built with sections and columns (not containers). Add widgets at top / bottom (each becomes a section with one column), inside a column (anchor = the column id, where inside_first / inside_last) or before / after a widget; or send a container: it is turned into a section with columns.';
+
+	/**
 	 * Widgets that may be inserted.
 	 */
 	public const WIDGETS = array( 'heading', 'text-editor', 'button', 'image', 'icon-list', 'spacer', 'divider', 'icon', 'icon-box', 'image-box', 'testimonial', 'star-rating', 'video' );
@@ -381,6 +386,17 @@ final class ElementorDoc {
 			if ( 'widget' === $type ) {
 				throw new \InvalidArgumentException( 'A widget cannot contain other elements: insert before / after it, or inside its container.' );
 			}
+			if ( 'section' === $type && ! $this->containers() && array_filter( $elements, static fn( $e ) => 'column' !== ( $e['elType'] ?? '' ) ) ) {
+				// 1.3.13: widgets / a container «inside a section» go into its first / last column.
+				$columns = array_values( array_filter( (array) ( $target['elements'] ?? array() ), static fn( $c ) => is_array( $c ) && 'column' === ( $c['elType'] ?? '' ) ) );
+				if ( ! $columns ) {
+					throw new \InvalidArgumentException( esc_html( self::SECTIONS_HELP ) );
+				}
+				$column = 'inside_first' === $where ? $columns[0] : $columns[ count( $columns ) - 1 ];
+				$this->insert( $elements, $where, (string) $column['id'] );
+				return;
+			}
+			$elements = $this->fit_column( $elements, $target );
 			foreach ( $elements as $element ) {
 				self::check_child( $type, $element );
 			}
@@ -389,7 +405,7 @@ final class ElementorDoc {
 			$target['elements'] = 'inside_first' === $where ? array_merge( $elements, $children ) : array_merge( $children, $elements );
 			$this->put( $anchor, $target );
 			return;
-		}
+		}//end if
 		if ( 'before' !== $where && 'after' !== $where ) {
 			throw new \InvalidArgumentException( 'where is before, after, inside_first, inside_last, top or bottom.' );
 		}
@@ -397,6 +413,10 @@ final class ElementorDoc {
 			$elements = array_map( array( $this, 'top_level' ), $elements );
 		} else {
 			$parent = $this->get( $this->parent_id( $anchor ) );
+			if ( 'section' === ( $parent['elType'] ?? '' ) && ! $this->containers() && array_filter( $elements, static fn( $e ) => 'column' !== ( $e['elType'] ?? '' ) ) ) {
+				throw new \InvalidArgumentException( esc_html( 'The anchor is a column: put the new elements inside it (where inside_first / inside_last). ' . self::SECTIONS_HELP ) );
+			}
+			$elements = $this->fit_column( $elements, $parent );
 			foreach ( $elements as $element ) {
 				self::check_child( (string) ( $parent['elType'] ?? '' ), $element );
 			}
@@ -474,24 +494,134 @@ final class ElementorDoc {
 		if ( 'section' === $type ) {
 			return self::inner_flag( $element, false );
 		}
+		if ( 'container' === $type ) {
+			return $this->as_section( $element, false );
+		}
+		if ( 'column' === $type ) {
+			return array(
+				'id'       => $this->ids->id(),
+				'elType'   => 'section',
+				'settings' => array(),
+				'elements' => array( self::inner_flag( $element, false ) + array( 'isInner' => false ) ),
+				'isInner'  => false,
+			);
+		}
 		if ( 'widget' !== $type ) {
-			throw new \InvalidArgumentException( 'This page uses sections: a top-level element is a section (with columns).' );
+			throw new \InvalidArgumentException( esc_html( self::SECTIONS_HELP ) );
 		}
 		return array(
 			'id'       => $this->ids->id(),
 			'elType'   => 'section',
 			'settings' => array(),
-			'elements' => array(
-				array(
-					'id'       => $this->ids->id(),
-					'elType'   => 'column',
-					'settings' => array( '_column_size' => 100 ),
-					'elements' => array( $element ),
-					'isInner'  => false,
-				),
-			),
+			'elements' => array( $this->as_column( array( 'elements' => array( $element ) ), false ) ),
 			'isInner'  => false,
 		);
+	}
+
+	/**
+	 * A container sent for a page built with sections (1.3.13, case #111): the same content as section › column(s). A container
+	 * holding only containers becomes one column per inner container; otherwise one column with its widgets (a container nested
+	 * in it becomes an inner section). Container-only (flex) settings are dropped.
+	 *
+	 * @param array<string,mixed> $element Container.
+	 * @param bool                $inner   An inner section (inside a column).
+	 * @return array<string,mixed>
+	 * @throws \InvalidArgumentException When it cannot be laid out with sections.
+	 */
+	private function as_section( array $element, bool $inner ): array {
+		$children = array_values( (array) ( $element['elements'] ?? array() ) );
+		$boxes    = array_filter( $children, static fn( $c ) => is_array( $c ) && 'widget' !== ( $c['elType'] ?? '' ) );
+		$columns  = array();
+		if ( $children && count( $boxes ) === count( $children ) ) {
+			foreach ( $children as $child ) {
+				$columns[] = $this->as_column( $child, $inner );
+			}
+		} else {
+			$columns[] = $this->as_column( array( 'elements' => $children ), $inner );
+		}
+		if ( count( $columns ) > 10 ) {
+			throw new \InvalidArgumentException( esc_html( 'A section holds at most 10 columns. ' . self::SECTIONS_HELP ) );
+		}
+		$size = (int) floor( 100 / count( $columns ) );
+		foreach ( $columns as $i => $column ) {
+			$columns[ $i ]['settings']['_column_size'] = $size;
+		}
+		return array(
+			'id'       => (string) ( $element['id'] ?? $this->ids->id() ),
+			'elType'   => 'section',
+			'settings' => self::legacy_settings( (array) ( $element['settings'] ?? array() ) ),
+			'elements' => $columns,
+			'isInner'  => $inner,
+		);
+	}
+
+	/**
+	 * A column holding the widgets of a container (a nested container → inner section, only in an outer section).
+	 *
+	 * @param array<string,mixed> $element Container (or {elements}).
+	 * @param bool                $inner   Column of an inner section.
+	 * @return array<string,mixed>
+	 * @throws \InvalidArgumentException When nested too deeply for sections.
+	 */
+	private function as_column( array $element, bool $inner ): array {
+		$out = array();
+		foreach ( (array) ( $element['elements'] ?? array() ) as $child ) {
+			$type = is_array( $child ) ? (string) ( $child['elType'] ?? '' ) : '';
+			if ( 'widget' === $type ) {
+				$out[] = $child;
+				continue;
+			}
+			if ( $inner || ! in_array( $type, array( 'container', 'section' ), true ) ) {
+				throw new \InvalidArgumentException( esc_html( 'Nested too deeply for a page built with sections. ' . self::SECTIONS_HELP ) );
+			}
+			$out[] = 'section' === $type ? self::inner_flag( $child, true ) : $this->as_section( $child, true );
+		}
+		return array(
+			'id'       => 'column' === ( $element['elType'] ?? '' ) && isset( $element['id'] ) ? (string) $element['id'] : $this->ids->id(),
+			'elType'   => 'column',
+			'settings' => self::legacy_settings( (array) ( $element['settings'] ?? array() ) ) + array( '_column_size' => 100 ),
+			'elements' => $out,
+			'isInner'  => $inner,
+		);
+	}
+
+	/**
+	 * Settings of a container kept on a section / column (background, padding, margin, …; flex layout dropped).
+	 *
+	 * @param array<string,mixed> $settings Settings.
+	 * @return array<string,mixed>
+	 */
+	private static function legacy_settings( array $settings ): array {
+		foreach ( array_keys( $settings ) as $key ) {
+			if ( preg_match( '/^(_?flex_|content_width|boxed_width|width|grid_|container_type|gap|_column_size|_inline_size)/', (string) $key ) ) {
+				unset( $settings[ $key ] );
+			}
+		}
+		return $settings;
+	}
+
+	/**
+	 * New elements placed in a column / section of a page built with sections: a container becomes an inner section in a column
+	 * (1.3.13).
+	 *
+	 * @param array<int,array<string,mixed>> $elements Elements.
+	 * @param array<string,mixed>            $column   Column it goes into.
+	 * @return array<int,array<string,mixed>>
+	 * @throws \InvalidArgumentException When it cannot fit.
+	 */
+	private function fit_column( array $elements, array $column ): array {
+		if ( $this->containers() || 'column' !== ( $column['elType'] ?? '' ) ) {
+			return $elements;
+		}
+		foreach ( $elements as $i => $element ) {
+			if ( 'container' === ( $element['elType'] ?? '' ) ) {
+				if ( ! empty( $column['isInner'] ) ) {
+					throw new \InvalidArgumentException( esc_html( 'This column is inside an inner section: add widgets here, not a container. ' . self::SECTIONS_HELP ) );
+				}
+				$elements[ $i ] = $this->as_section( $element, true );
+			}
+		}
+		return $elements;
 	}
 
 	/**
@@ -619,11 +749,15 @@ final class ElementorDoc {
 			} else {
 				$element['isInner'] = $depth > 0;
 				$children           = $this->build( (array) ( $spec['elements'] ?? array() ), $depth + 1, $count );
+				if ( 'section' === $type && $children && ! array_filter( $children, static fn( $c ) => 'column' === $c['elType'] ) ) {
+					// 1.3.13: a section listing widgets directly → one column holding them.
+					$children = array( $this->as_column( array( 'elements' => $children ), $depth > 0 ) );
+				}
 				foreach ( $children as $child ) {
 					self::check_child( $type, $child );
 				}
 				$element['elements'] = $children;
-			}
+			}//end if
 			$settings = is_array( $spec['settings'] ?? null ) ? $spec['settings'] : array();
 			foreach ( $settings as $key => $value ) {
 				self::check_key( (string) $key );

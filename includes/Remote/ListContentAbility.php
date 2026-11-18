@@ -28,7 +28,7 @@ final class ListContentAbility {
 			self::NAME,
 			array(
 				'label'               => __( 'Pages and posts', 'addsynapse-store-assistant' ),
-				'description'         => 'Lists pages, posts or another editable post type (id, title, type, status, dates, link, featured image), with optional status and search filters. Read-only.',
+				'description'         => 'Lists pages, posts or another editable content type of the site (custom types such as portfolio, events or testimonials; type = its slug or name, "any" = all) — id, title, type, status, dates, link, featured image — with optional status and search filters. Read-only.',
 				'category'            => AbilitiesRegistrar::CATEGORY,
 				'input_schema'        => array(
 					'type'                 => 'object',
@@ -72,14 +72,25 @@ final class ListContentAbility {
 	}
 
 	/**
-	 * The editable post types (slug => label).
+	 * Post types never listed here (1.3.13): products have their own tools; the rest are internal (media, menus, block
+	 * templates, builder templates and snippets, forms, checkout / POS records, field groups).
+	 */
+	private const INTERNAL = array( 'product', 'product_variation', 'attachment', 'nav_menu_item', 'revision', 'custom_css', 'customize_changeset', 'oembed_cache', 'user_request', 'shop_order', 'shop_coupon', 'shop_order_refund', 'shop_order_placehold', 'scheduled-action', 'elementor_library', 'elementor_snippet', 'elementor_font', 'elementor_icons', 'e-floating-buttons', 'wpcf7_contact_form', 'wpforms', 'acf-field-group', 'acf-field', 'acf-post-type', 'acf-taxonomy', 'acf-ui-options-page', 'gp_elements' );
+
+	/**
+	 * The editable post types (slug => label): post, page and every custom type with an admin screen and content of its own
+	 * (public, or with the editor) that the connected user may edit (1.3.13: custom types such as portfolio, events, testimonials).
 	 *
 	 * @return array<string,string>
 	 */
 	public static function types(): array {
 		$out = array();
 		foreach ( get_post_types( array( 'show_ui' => true ), 'objects' ) as $slug => $type ) {
-			if ( in_array( $slug, array( 'attachment', 'nav_menu_item', 'wp_navigation', 'wp_template', 'wp_template_part', 'wp_block', 'wp_global_styles', 'shop_order', 'shop_coupon', 'shop_order_refund', 'product_variation' ), true ) ) {
+			$slug = (string) $slug;
+			if ( in_array( $slug, self::INTERNAL, true ) || 0 === strpos( $slug, 'wp_' ) ) {
+				continue;
+			}
+			if ( ! in_array( $slug, array( 'post', 'page' ), true ) && ! $type->public && ! post_type_supports( $slug, 'editor' ) ) {
 				continue;
 			}
 			if ( current_user_can( $type->cap->edit_posts ) ) {
@@ -87,6 +98,55 @@ final class ListContentAbility {
 			}
 		}
 		return $out;
+	}
+
+	/**
+	 * The type the AI meant (1.3.13): its slug, its name or singular name («Portfolio», «Events»), or the slug written as a plural
+	 * / singular, any case. null = no such editable type.
+	 *
+	 * @param string               $asked Asked type.
+	 * @param array<string,string> $types types().
+	 */
+	public static function resolve( string $asked, array $types ): ?string {
+		$norm = static function ( string $s ): string {
+			$s = strtolower( remove_accents( trim( $s ) ) );
+			$s = (string) preg_replace( '/[\s_-]+/', '-', $s );
+			return (string) preg_replace( '/(ies|es|s)$/', '', $s );
+		};
+		$want = $norm( $asked );
+		if ( '' === $want ) {
+			return null;
+		}
+		if ( isset( $types[ strtolower( trim( $asked ) ) ] ) ) {
+			return strtolower( trim( $asked ) );
+		}
+		foreach ( $types as $slug => $label ) {
+			$object  = get_post_type_object( $slug );
+			$names   = array( $slug, $label, $object ? (string) $object->labels->singular_name : '' );
+			$rewrite = $object && is_array( $object->rewrite ) ? (string) ( $object->rewrite['slug'] ?? '' ) : '';
+			if ( '' !== $rewrite ) {
+				$names[] = $rewrite;
+			}
+			foreach ( $names as $name ) {
+				if ( '' !== $name && $norm( html_entity_decode( $name, ENT_QUOTES, 'UTF-8' ) ) === $want ) {
+					return $slug;
+				}
+			}
+		}
+		return null;
+	}
+
+	/**
+	 * The editable types as «slug (Name)» for messages to the AI.
+	 *
+	 * @param array<string,string> $types types().
+	 */
+	public static function described( array $types ): string {
+		$out = array();
+		foreach ( $types as $slug => $label ) {
+			$out[] = $slug . ( strtolower( $label ) !== $slug ? ' (' . $label . ')' : '' );
+		}
+		return implode( ', ', $out );
 	}
 
 	/**
@@ -100,7 +160,17 @@ final class ListContentAbility {
 		$types = self::types();
 		$type  = isset( $input['type'] ) && '' !== $input['type'] ? (string) $input['type'] : 'page';
 		if ( 'any' !== $type && ! isset( $types[ $type ] ) ) {
-			return new \WP_Error( 'addsynapse_assistant_content_type', sprintf( 'Unknown or not editable type "%1$s". Types: %2$s.', $type, implode( ', ', array_keys( $types ) ) ) );
+			$found = self::resolve( $type, $types );
+			if ( null === $found ) {
+				$product = in_array( strtolower( $type ), array( 'product', 'products', 'product_variation' ), true );
+				return new \WP_Error(
+					'addsynapse_assistant_content_type',
+					$product
+						? 'Products are not listed here: use the product tools (search_products, get_product).'
+						: sprintf( 'This site has no editable content type "%1$s". Content types on this site (use the slug as type): %2$s.', $type, self::described( $types ) )
+				);
+			}
+			$type = $found;
 		}
 		$status   = (string) ( $input['status'] ?? 'any' );
 		$per_page = (int) ( $input['per_page'] ?? 20 );

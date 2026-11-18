@@ -64,10 +64,9 @@ final class DescribeStoreAbility {
 	 */
 	public function execute( $input = null ): array {
 		$input = is_array( $input ) ? $input : array();
-		if ( ! Environment::has_woocommerce() ) {
-			// Plain WordPress site: the site map (no products, no product meta).
-			return SiteMap::build();
-		}
-		return StoreMap::get( ! empty( $input['refresh'] ) );
+		$map   = Environment::has_woocommerce() ? StoreMap::get( ! empty( $input['refresh'] ) ) : SiteMap::build();
+		// 1.3.13: the content types list_content / get_content / plan_content_update work with (custom types included).
+		$map['content_types'] = \Addsynapse\StoreAssistant\Remote\ListContentAbility::types();
+		return $map;
 	}
 }
