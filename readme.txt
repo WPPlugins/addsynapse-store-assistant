@@ -6,7 +6,7 @@ Tested up to: 7.1
 Requires PHP: 7.4
 WC requires at least: 8.0
 WC tested up to: 11.1
-Stable tag: 1.3.14
+Stable tag: 1.3.15
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -222,7 +222,7 @@ With an account, at most daily while a user opens the plugin's screens, it fetch
 
 The connection, started from your AI app, opens this plugin's page. For a logged-in administrator only, it asks which account started it (`POST https://api.addsynapse.com/api/v1/assistant/relay-claim/preview`: one-time code and site address; answer: account name and masked email). Only on **Connect** does the plugin create a random connection key, acting as you, and send it once over HTTPS (`POST https://api.addsynapse.com/api/v1/assistant/relay-claim`: key, user name, site address, one-time code — never in a web address); Cancel creates nothing. The site keeps only a keyed hash; unused within 15 minutes, the key is revoked. Sites connected earlier keep their Application Password until they reconnect.
 
-The key works only on this plugin's `addsynapse-assistant/v1/remote/*` routes over HTTPS (never users, plugins, settings, other routes or XML-RPC). When you ask your AI app, AddSynapse's servers use it to read: site or store name and structure, pages, posts, custom content types, menus and media, products and variations, categories, stock and catalogue reports, sales totals and best sellers (never customer names, emails or addresses), and SEO data. Only after you press Approve (or Undo), with a single-use ticket AddSynapse signs at that moment (Ed25519, valid 5 minutes, bound to this site and the exact values), they write the approved values: pages, posts and custom content (title, excerpt, content, status, template; new posts and pages), menus, featured images, media details (alt text, title, caption, description), the look of the site (styles, templates, theme settings and logo, widgets, Additional CSS, Elementor), SEO titles, meta descriptions and focus keywords, and on WooCommerce stores product names and descriptions, prices, sale prices and stock, categories, tags, brand and attributes, custom fields, new products (also with variations) and coupons. Each write is listed in Settings → Approval log.
+The key works only on this plugin's `addsynapse-assistant/v1/remote/*` routes over HTTPS (never users, plugins, settings, other routes or XML-RPC). When you ask your AI app, AddSynapse's servers use it to read: site or store name and structure, pages, posts, custom content types, menus and media, products and variations, categories, stock and catalogue reports, sales totals and best sellers (never customer names, emails or addresses), and SEO data. Only after you press Approve (or Undo), with a single-use ticket AddSynapse signs at that moment (Ed25519, valid 5 minutes, bound to this site and the exact values), they write the approved values: pages, posts and custom content (title, excerpt, content, status, template; new posts and pages), menus, featured images, media details (alt text, title, caption, description), the look of the site (styles, templates, theme settings and logo, widgets, Additional CSS, Elementor), measurement codes and, only if you allowed it in Settings, small scripts, SEO titles, meta descriptions and focus keywords, and on WooCommerce stores product names and descriptions, prices, sale prices and stock, categories, tags, brand and attributes, custom fields, new products (also with variations) and coupons. Each write is listed in Settings → Approval log.
 
 Image from a web address you give: only after Approve, your server downloads that one image from that website (not AddSynapse; https only; private, local and loopback addresses refused, also after redirects; JPG, PNG, WebP or GIF, ≤10 MB, 15 seconds). Undo deletes it while unused.
 
@@ -238,7 +238,20 @@ A one-time notice "Help improve Store Assistant" offers **Allow** and **No thank
 * AddSynapse terms of service: https://addsynapse.com/terms
 * AddSynapse privacy policy: https://addsynapse.com/privacy
 
+= 7. Measurement codes you approve — Google, Meta, Microsoft, TikTok (only after you approve one) =
+
+The plugin sends nothing itself. Only after you approve a measurement code (from Claude you give the provider and the ID; the plugin writes the provider's official code), every public page loads that provider's tag in your visitors' browsers, which sends page views and visitor data to the provider under its terms: Google Analytics 4, Google Tag Manager and Google Ads (www.googletagmanager.com), Meta Pixel (connect.facebook.net), Microsoft Clarity (www.clarity.ms), TikTok Pixel (analytics.tiktok.com). With a cookie banner plugin it follows the visitor's choice (Google Consent Mode v2, WP Consent API). Undo removes it.
+
+* Google privacy policy: https://policies.google.com/privacy
+* Meta privacy policy: https://www.facebook.com/privacy/policy/
+* Microsoft privacy statement: https://www.microsoft.com/en-us/privacy/privacystatement
+* TikTok privacy policy: https://www.tiktok.com/legal/page/global/privacy-policy/en
+
 == Changelog ==
+
+= 1.3.15 =
+* New: measurement codes from Claude. Say «Using AddSynapse, add Google Analytics, ID G-…» — Google Analytics 4, Google Tag Manager, Google Ads, Meta Pixel, Microsoft Clarity or TikTok Pixel. The AI gives only the ID; the plugin writes the provider's official code. It warns when another plugin or the theme already adds the same code (visits counted twice), follows your cookie banner, and Undo removes it.
+* New: small scripts written by the AI (for example a sticky header or a back-to-top button), off by default: turn on «Allow the AI to add JavaScript» in Settings. Each script is checked (no hidden or encoded code, cookies, form fields, redirects or other websites unless you allow them), shown in full before you approve, never runs on checkout, cart, my account or login pages, and can be undone.
 
 = 1.3.14 =
 * New: Elementor: ask the AI for custom HTML and CSS (Pro), safely checked. Add an HTML widget (for example a YouTube or Vimeo video, a styled box or a table), custom CSS on an element (Elementor Pro) and custom attributes. Every piece of code is checked before the draft and again on Approve: no scripts, no outside images, videos only from YouTube or Vimeo. Undo puts the page back exactly as it was.
@@ -366,6 +379,9 @@ A one-time notice "Help improve Store Assistant" offers **Allow** and **No thank
 * First release on WordPress.org: chat in wp-admin, read tools, previews with Approve and Undo for prices, stock, categories, attributes, variations, product details, menus, pages, SEO, orders and coupons, CSV import, 5-day free trial without sign-up, then a free read-only plan; Subscribe from the plugin. Bulk previews show how many questions they count (10 products = 1 question). Slash commands, previews, Approve, Undo, voice input and Show me work for everyone, without a connection or subscription.
 
 == Upgrade Notice ==
+
+= 1.3.15 =
+Measurement codes (Google Analytics, Tag Manager, Google Ads, Meta, Clarity, TikTok) from Claude; optional checked scripts.
 
 = 1.3.14 =
 Elementor: ask the AI for custom HTML and CSS (Pro), safely checked; longer texts.

@@ -92,6 +92,8 @@ final class Plugin {
 			\Addsynapse\StoreAssistant\Remote\RemoteAccess::class,
 			// Optional anonymous usage info (off by default; the weekly WP-Cron call runs only after «Allow»).
 			new Usage(),
+			// 1.3.15: approved measurement codes and scripts on the public pages (nothing is printed until one is approved).
+			\Addsynapse\StoreAssistant\Tracking\Frontend::class,
 		);
 		if ( $admin ) {
 			// Shared «AddSynapse» top-level menu (docs/ADMIN-MENU.md): Home (welcome wizard / status), Chat, Settings.
@@ -105,13 +107,15 @@ final class Plugin {
 			$list[] = new SettingsPage();
 			// Settings → «Your own AI key»: save + test, remove.
 			$list[] = new OwnKeySection();
+			// Settings → measurement codes and the «Allow the AI to add JavaScript» switch (1.3.15).
+			$list[] = new \Addsynapse\StoreAssistant\Admin\TrackingSection();
 			// Optional AddSynapse account (opt-in card) and short announcements — the plugin's own screens only.
 			$list[] = new OptIn();
 			$list[] = new Announcements();
 			// Links to the separate Store Assistant Pro add-on (Home, Plugins row) and the one-time review request.
 			$list[] = new ProOffers();
 			$list[] = new ReviewRequest();
-		}
+		}//end if
 		return $list;
 	}
 }

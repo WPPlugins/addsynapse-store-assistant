@@ -8,6 +8,7 @@
 namespace Addsynapse\StoreAssistant\Design;
 
 use Addsynapse\StoreAssistant\Adapters\Content\ElementorAdapter;
+use Addsynapse\StoreAssistant\Tracking\TrackingUnits;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -22,13 +23,14 @@ defined( 'ABSPATH' ) || exit;
  *  - doc      key = post:<id> (block content), elementor:<id> (Elementor data), wp_template:<slug> /
  *             wp_template_part:<slug> (the template WordPress uses now): values {raw} (+ {custom} for templates: false = the
  *             theme's / plugin's own file, so Undo of a first customisation deletes the customised copy);
- *  - kit      key = Elementor kit id: the Site Settings, values {raw: JSON|null}.
+ *  - kit      key = Elementor kit id: the Site Settings, values {raw: JSON|null};
+ *  - tracking / script (1.3.15): measurement codes and AI scripts — Tracking\TrackingUnits.
  * The planners (GlobalStyles, BlocksEdit, ThemeSettings, ElementorEdit, ElementorKit) compute the target and write nothing;
  * from_lines() turns their lines into units {kind, key, name, before, after, preview}.
  */
 final class DesignUnits {
 
-	public const KINDS = array( 'styles', 'css', 'setting', 'widgets', 'doc', 'kit' );
+	public const KINDS = array( 'styles', 'css', 'setting', 'widgets', 'doc', 'kit', 'tracking', 'script' );
 
 	/**
 	 * Tags / attributes / URLs that count as active content (a user without «unfiltered_html» may not add any).
@@ -81,6 +83,9 @@ final class DesignUnits {
 	 * @throws \InvalidArgumentException When it cannot be read (or not by this user).
 	 */
 	private static function read_unit( string $kind, string $key ): array {
+		if ( TrackingUnits::handles( $kind ) ) {
+			return TrackingUnits::read_unit( $kind, $key );
+		}
 		switch ( $kind ) {
 			case 'styles':
 				self::active_theme( $key );
@@ -213,6 +218,9 @@ final class DesignUnits {
 	 * @param array<string,mixed> $expect Values the unit holds now (expected).
 	 */
 	public static function invalid( string $kind, string $key, array $set, array $expect ): string {
+		if ( TrackingUnits::handles( $kind ) ) {
+			return TrackingUnits::invalid( $kind, $key, $set );
+		}
 		$fields = array(
 			'styles'  => array( 'raw' ),
 			'css'     => array( 'css' ),
@@ -278,6 +286,10 @@ final class DesignUnits {
 	 * @throws \RuntimeException When WordPress refuses or changes the write.
 	 */
 	public static function write( string $kind, string $key, array $set ): void {
+		if ( TrackingUnits::handles( $kind ) ) {
+			TrackingUnits::write( $kind, $key, $set );
+			return;
+		}
 		switch ( $kind ) {
 			case 'styles':
 				$post = GlobalStyles::post();

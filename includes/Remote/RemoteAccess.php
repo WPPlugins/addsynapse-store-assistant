@@ -67,6 +67,8 @@ final class RemoteAccess {
 		PageTemplates::NAME,
 		CheckMediaUrlAbility::NAME,
 		ReadFieldsAbility::NAME,
+		TrackingAbilities::DESCRIBE,
+		TrackingAbilities::PLAN,
 	);
 
 	/** Write abilities (owner-approved change sets only; never agent tools). */
@@ -307,6 +309,8 @@ final class RemoteAccess {
 		( new PageTemplates() )->register();
 		( new CheckMediaUrlAbility() )->register();
 		( new ReadFieldsAbility() )->register();
+		// 1.3.15: measurement codes and scripts added by the AI (with or without WooCommerce).
+		( new TrackingAbilities() )->register();
 		if ( ! Environment::has_woocommerce() ) {
 			return;
 		}

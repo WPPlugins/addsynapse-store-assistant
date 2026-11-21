@@ -101,6 +101,12 @@ function addsynapse_assistant_uninstall_site() {
 		// 1.3.4: drafts waiting on the wp-admin approval page (coupons above 50 % off), and when each key was last used.
 		'addsynapse_assistant_admin_approvals',
 		'addsynapse_assistant_relay_keys_used',
+		// 1.3.15: measurement codes, scripts added by the AI, the JavaScript switch / allowed domains, refused scripts.
+		'addsynapse_assistant_tracking_codes',
+		'addsynapse_assistant_custom_scripts',
+		'addsynapse_assistant_allow_js',
+		'addsynapse_assistant_js_domains',
+		'addsynapse_assistant_js_refusals',
 	);
 	foreach ( $options as $option ) {
 		delete_option( $option );
