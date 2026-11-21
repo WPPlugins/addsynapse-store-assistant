@@ -722,6 +722,11 @@ final class DesignUnits {
 			if ( strlen( $set['raw'] ) > BlocksEdit::MAX_BYTES ) {
 				return 'The content would be too large.';
 			}
+			// 1.3.14: custom CSS / HTML / attributes new in this document must be exactly what the planner writes.
+			$problem = ElementorCode::tree_problem( $expect, $set['raw'] );
+			if ( '' !== $problem ) {
+				return $problem;
+			}
 		} else {
 			$problem = BlocksEdit::final_problem( $set['raw'] );
 			if ( '' !== $problem ) {

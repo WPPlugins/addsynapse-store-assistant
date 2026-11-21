@@ -15,9 +15,10 @@ defined( 'ABSPATH' ) || exit;
 /**
  * Elementor stores a page (or a Theme Builder header / footer, a saved template…) as a JSON list of elements:
  * {id, elType container|section|column|widget, widgetType, settings{…}, elements[…], isInner}. Element ids are stable
- * (Elementor's own 7-character ids) and new elements get fresh unique ids. Every setting value is plain data: code-like
- * keys (custom CSS / HTML / attributes / scripts) are refused, rich texts go through kses, links through the link checks,
- * images must come from the media library, colors are CSS colors or global color references.
+ * (Elementor's own 7-character ids) and new elements get fresh unique ids. Every setting value is plain data or checked
+ * code: custom CSS / HTML / custom attributes go through ElementorCode (1.3.14), scripts and shortcodes are refused, rich
+ * texts go through kses, links through the link checks, images must come from the media library, colors are CSS colors or
+ * global color references.
  */
 final class ElementorDoc {
 
@@ -31,7 +32,7 @@ final class ElementorDoc {
 	/**
 	 * Widgets that may be inserted.
 	 */
-	public const WIDGETS = array( 'heading', 'text-editor', 'button', 'image', 'icon-list', 'spacer', 'divider', 'icon', 'icon-box', 'image-box', 'testimonial', 'star-rating', 'video' );
+	public const WIDGETS = array( 'heading', 'text-editor', 'button', 'image', 'icon-list', 'spacer', 'divider', 'icon', 'icon-box', 'image-box', 'testimonial', 'star-rating', 'video', 'html' );
 
 	/**
 	 * Main text setting of a widget (set_text).
@@ -44,11 +45,6 @@ final class ElementorDoc {
 		'image-box'   => array( 'title_text', 'rich' ),
 		'testimonial' => array( 'testimonial_content', 'rich' ),
 	);
-
-	/**
-	 * Keys allowed although they look code-like.
-	 */
-	private const SAFE_KEYS = array( '_css_classes', 'css_filters', 'css_filters_hover', 'html_tag' );
 
 	/**
 	 * Settings holding rich text.
@@ -777,7 +773,7 @@ final class ElementorDoc {
 	}
 
 	/**
-	 * Refuses code-like setting keys.
+	 * Refuses invalid keys and scripts / shortcodes (CSS, HTML and attributes are checked with their values).
 	 *
 	 * @param string $key Key.
 	 * @throws \InvalidArgumentException When not allowed.
@@ -786,11 +782,8 @@ final class ElementorDoc {
 		if ( ! preg_match( '/^[A-Za-z0-9_]{1,80}$/', $key ) ) {
 			throw new \InvalidArgumentException( sprintf( 'Invalid setting key "%s".', esc_html( $key ) ) );
 		}
-		if ( in_array( $key, self::SAFE_KEYS, true ) ) {
-			return;
-		}
-		if ( preg_match( '/css|html|script|(^|_)js($|_)|attributes|shortcode|_code$|^code$/i', $key ) ) {
-			throw new \InvalidArgumentException( sprintf( 'The setting "%s" holds code (CSS / HTML / attributes / scripts), which the assistant does not write: use the site styles or Additional CSS instead.', esc_html( $key ) ) );
+		if ( 'closed' === ElementorCode::kind( $key ) ) {
+			throw new \InvalidArgumentException( esc_html( ElementorCode::closed_message( $key ) ) );
 		}
 	}
 
@@ -803,7 +796,15 @@ final class ElementorDoc {
 	 * @throws \InvalidArgumentException When not allowed.
 	 */
 	public function clean_value( string $key, $value ) {
-		$problem = BlockAttrs::value_problem( $value, 0, $key );
+		$code = ElementorCode::kind( $key );
+		if ( 'closed' === $code ) {
+			throw new \InvalidArgumentException( esc_html( ElementorCode::closed_message( $key ) ) );
+		}
+		if ( '' !== $code && ! is_array( $value ) ) {
+			return ElementorCode::clean( $code, $key, $value, $this->external );
+		}
+		// 1.3.14: long texts (text-editor) up to 20 KB, as rich() allows, instead of the 8,000 bytes of block attributes.
+		$problem = BlockAttrs::value_problem( $value, 0, $key, in_array( $key, self::RICH, true ) ? ElementorCode::MAX : 8000 );
 		if ( '' !== $problem ) {
 			throw new \InvalidArgumentException( esc_html( $problem ) );
 		}
@@ -840,9 +841,13 @@ final class ElementorDoc {
 					$value[ $flag ] = $value[ $flag ] && 'off' !== $value[ $flag ] ? 'on' : '';
 				}
 			}
-			unset( $value['custom_attributes'] );
+			if ( is_string( $value['custom_attributes'] ?? null ) && '' !== trim( $value['custom_attributes'] ) ) {
+				$value['custom_attributes'] = ElementorCode::clean( 'attributes', 'custom_attributes', $value['custom_attributes'], $this->external );
+			} else {
+				unset( $value['custom_attributes'] );
+			}
 			return $value;
-		}
+		}//end if
 		if ( is_string( $value ) ) {
 			if ( preg_match( '/(^|_)color$/', $key ) && '' !== $value ) {
 				return BlockAttrs::css_color( $value );
@@ -970,16 +975,19 @@ final class ElementorDoc {
 	 * Settings shown by describe_blocks (values cut, big lists summarised).
 	 *
 	 * @param array<string,mixed> $settings Settings.
+	 * @param bool                $full     One element read: CSS / HTML / attributes / long texts in full (1.3.14).
 	 * @return array<string,mixed>
 	 */
-	private static function shown_settings( array $settings ): array {
+	private static function shown_settings( array $settings, bool $full = false ): array {
 		$out = array();
 		foreach ( $settings as $key => $value ) {
 			if ( count( $out ) >= 30 ) {
 				$out['more'] = sprintf( '%d more settings', count( $settings ) - 30 );
 				break;
 			}
-			if ( is_string( $value ) ) {
+			if ( is_string( $value ) && $full && ( '' !== ElementorCode::kind( (string) $key ) || in_array( (string) $key, self::RICH, true ) ) ) {
+				$value = strlen( $value ) > ElementorCode::MAX ? mb_strcut( $value, 0, ElementorCode::MAX ) . '…' : $value;
+			} elseif ( is_string( $value ) ) {
 				$value = mb_strlen( $value ) > 120 ? mb_substr( wp_strip_all_tags( $value ), 0, 119 ) . '…' : $value;
 			} elseif ( is_array( $value ) ) {
 				$json = (string) wp_json_encode( $value );
@@ -1024,7 +1032,7 @@ final class ElementorDoc {
 					'widget'   => (string) ( $element['widgetType'] ?? '' ),
 					'depth'    => $entry['depth'],
 					'parent'   => $entry['parent'],
-					'settings' => self::shown_settings( is_array( $element['settings'] ?? null ) ? $element['settings'] : array() ),
+					'settings' => self::shown_settings( is_array( $element['settings'] ?? null ) ? $element['settings'] : array(), '' !== $block && $entry['id'] === $block ),
 					'text'     => self::text( $element ),
 					'children' => count( (array) ( $element['elements'] ?? array() ) ),
 				),
@@ -1049,7 +1057,7 @@ final class ElementorDoc {
 			'elements'  => $elements,
 			'count'     => count( $all ),
 			'truncated' => $cut,
-			'note'      => 'Use these element ids with plan_elementor_edit. Colors may point to the site\'s global colors through settings.__globals__ (e.g. {"title_color":"globals/colors?id=primary"}); change the global colors / fonts themselves with plan_elementor_kit.',
+			'note'      => 'Use these element ids with plan_elementor_edit. Long values (custom_css, html, texts) are cut here: read one element (block = its id) for the full value. Colors may point to the site\'s global colors through settings.__globals__ (e.g. {"title_color":"globals/colors?id=primary"}); change the global colors / fonts themselves with plan_elementor_kit.',
 			'_data'     => Shared::DATA_NOTICE,
 		);
 	}

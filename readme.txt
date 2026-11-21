@@ -6,7 +6,7 @@ Tested up to: 7.1
 Requires PHP: 7.4
 WC requires at least: 8.0
 WC tested up to: 11.1
-Stable tag: 1.3.13
+Stable tag: 1.3.14
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -240,6 +240,10 @@ A one-time notice "Help improve Store Assistant" offers **Allow** and **No thank
 
 == Changelog ==
 
+= 1.3.14 =
+* New: Elementor: ask the AI for custom HTML and CSS (Pro), safely checked. Add an HTML widget (for example a YouTube or Vimeo video, a styled box or a table), custom CSS on an element (Elementor Pro) and custom attributes. Every piece of code is checked before the draft and again on Approve: no scripts, no outside images, videos only from YouTube or Vimeo. Undo puts the page back exactly as it was.
+* Changed: longer texts. A single Elementor text can now hold up to 20 KB (before: about 8 KB), and Claude or ChatGPT can read the full text, HTML or CSS of any part of the page.
+
 = 1.3.13 =
 * New: from Claude or ChatGPT, add products with options (for example sizes and colors), each option with its own price, sale price, stock and SKU, up to 50 per product. Your shop's existing attributes are used when the name matches. Nothing is created until you press Approve; Undo moves the product and its options to the trash and removes the attribute values it added.
 * New: from Claude or ChatGPT, custom content types (for example portfolio, events or testimonials) can be listed, read and edited like pages and posts — by their name or slug. Products keep their own tools.
@@ -362,6 +366,9 @@ A one-time notice "Help improve Store Assistant" offers **Allow** and **No thank
 * First release on WordPress.org: chat in wp-admin, read tools, previews with Approve and Undo for prices, stock, categories, attributes, variations, product details, menus, pages, SEO, orders and coupons, CSV import, 5-day free trial without sign-up, then a free read-only plan; Subscribe from the plugin. Bulk previews show how many questions they count (10 products = 1 question). Slash commands, previews, Approve, Undo, voice input and Show me work for everyone, without a connection or subscription.
 
 == Upgrade Notice ==
+
+= 1.3.14 =
+Elementor: ask the AI for custom HTML and CSS (Pro), safely checked; longer texts.
 
 = 1.3.13 =
 Add products with options (sizes, colors) and edit custom content types from Claude or ChatGPT; Elementor section pages get new parts.

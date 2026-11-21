@@ -93,8 +93,9 @@ final class BlockAttrs {
 	 * @param mixed  $value Value.
 	 * @param int    $depth Depth.
 	 * @param string $path  Path for the message.
+	 * @param int    $max   Longest string (bytes).
 	 */
-	public static function value_problem( $value, int $depth = 0, string $path = 'attrs' ): string {
+	public static function value_problem( $value, int $depth = 0, string $path = 'attrs', int $max = 8000 ): string {
 		if ( $depth > 8 ) {
 			return $path . ' is nested too deeply.';
 		}
@@ -106,7 +107,7 @@ final class BlockAttrs {
 				if ( ! is_int( $key ) && ! preg_match( '/^[A-Za-z0-9_:\-\/|.]{1,80}$/', (string) $key ) ) {
 					return $path . ' has an invalid key.';
 				}
-				$problem = self::value_problem( $item, $depth + 1, $path . '.' . $key );
+				$problem = self::value_problem( $item, $depth + 1, $path . '.' . $key, $max );
 				if ( '' !== $problem ) {
 					return $problem;
 				}
@@ -114,8 +115,8 @@ final class BlockAttrs {
 			return '';
 		}
 		if ( is_string( $value ) ) {
-			if ( strlen( $value ) > 8000 ) {
-				return $path . ' is too long.';
+			if ( strlen( $value ) > $max ) {
+				return sprintf( '%1$s is too long (max %2$d bytes): split it into several parts.', $path, $max );
 			}
 			if ( preg_match( '/<\s*\/?\s*(script|style|iframe|object|embed)\b|javascript\s*:|vbscript\s*:|expression\s*\(|@import|[\s"\'\/]on[a-z]+\s*=/i', $value ) ) {
 				return $path . ' contains code, which is not allowed.';

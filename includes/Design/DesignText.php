@@ -55,7 +55,7 @@ final class DesignText {
 		}
 		$max = 'heading' === $context ? self::MAX['heading'] : self::MAX['text'];
 		if ( mb_strlen( $html ) > $max ) {
-			return new WP_Error( 'addsynapse_assistant_content_too_long', sprintf( 'The new text is too long (max %d characters).', $max ) );
+			return new WP_Error( 'addsynapse_assistant_content_too_long', sprintf( 'The new text is too long (max %d characters): split it into several text blocks.', $max ) );
 		}
 		$active = self::active_content( $html );
 		if ( '' !== $active ) {
