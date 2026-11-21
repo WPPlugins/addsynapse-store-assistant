@@ -88,6 +88,7 @@ final class GetProductAbility {
 				'stock_quantity' => array( 'type' => array( 'integer', 'null' ) ),
 				'enabled'        => array( 'type' => 'boolean' ),
 				'has_image'      => array( 'type' => 'boolean' ),
+				'image_id'       => array( 'type' => 'integer' ),
 			),
 		);
 		return array(
@@ -113,6 +114,24 @@ final class GetProductAbility {
 				'tags'                     => $string_list,
 				'has_image'                => array( 'type' => 'boolean' ),
 				'gallery_count'            => array( 'type' => 'integer' ),
+				'image_id'                 => array( 'type' => 'integer' ),
+				'gallery_image_ids'        => array(
+					'type'  => 'array',
+					'items' => array( 'type' => 'integer' ),
+				),
+				'images'                   => array(
+					'type'  => 'array',
+					'items' => array(
+						'type'                 => 'object',
+						'additionalProperties' => false,
+						'properties'           => array(
+							'id'    => array( 'type' => 'integer' ),
+							'file'  => array( 'type' => 'string' ),
+							'title' => array( 'type' => 'string' ),
+							'thumb' => array( 'type' => 'string' ),
+						),
+					),
+				),
 				'description_length'       => array( 'type' => 'integer' ),
 				'short_description_length' => array( 'type' => 'integer' ),
 				'total_sales'              => array( 'type' => 'integer' ),
@@ -196,6 +215,10 @@ final class GetProductAbility {
 			'tags'                     => Shared::term_names( $product, 'product_tag', 20 ),
 			'has_image'                => (bool) $product->get_image_id(),
 			'gallery_count'            => count( $product->get_gallery_image_ids() ),
+			// 1.3.16: the ids of the main image and the gallery (in order), and small facts about each (no HTML).
+			'image_id'                 => (int) $product->get_image_id( 'edit' ),
+			'gallery_image_ids'        => array_values( array_map( 'intval', (array) $product->get_gallery_image_ids( 'edit' ) ) ),
+			'images'                   => \Addsynapse\StoreAssistant\Remote\ProductImages::describe( array_merge( array( (int) $product->get_image_id( 'edit' ) ), (array) $product->get_gallery_image_ids( 'edit' ) ) ),
 			'description_length'       => self::text_length( $product->get_description() ),
 			'short_description_length' => self::text_length( $product->get_short_description() ),
 			'total_sales'              => (int) $product->get_total_sales(),
@@ -304,6 +327,7 @@ final class GetProductAbility {
 			'stock_quantity' => null === $quantity ? null : (int) $quantity,
 			'enabled'        => 'publish' === $variation->get_status(),
 			'has_image'      => (bool) $variation->get_image_id( 'edit' ),
+			'image_id'       => (int) $variation->get_image_id( 'edit' ),
 		);
 	}
 }

@@ -52,6 +52,52 @@ final class ApplyChangesAbility {
 	private $refs = array();
 
 	/**
+	 * 1.3.16: indexes of the items that add an image (kind media, id 0): product_images items may point at them with "@N".
+	 *
+	 * @var int[]
+	 */
+	private $media_refs = array();
+
+	/**
+	 * 1.3.16: the items of the call being checked (Undo of an added image: the product images of the same call that let it go).
+	 *
+	 * @var array<int,array<string,mixed>>
+	 */
+	private $items = array();
+
+	/**
+	 * Indexes of the image-adding items of a change set.
+	 *
+	 * @param array<int,mixed> $items Items.
+	 * @return int[]
+	 */
+	private static function media_refs( array $items ): array {
+		$out = array();
+		foreach ( array_values( $items ) as $i => $item ) {
+			$item = (array) $item;
+			if ( 'media' === ( $item['kind'] ?? '' ) && 0 === (int) ( $item['id'] ?? 0 ) ) {
+				$out[] = $i;
+			}
+		}
+		return $out;
+	}
+
+	/**
+	 * Whether the product images of this call stop using an image (Undo: the product gets its previous images back first).
+	 *
+	 * @param int $image Attachment id.
+	 */
+	private function released_here( int $image ): bool {
+		foreach ( $this->items as $item ) {
+			if ( ProductImages::handles( (string) ( $item['kind'] ?? '' ) ) && in_array( $image, ProductImages::ids( $item['expect'] ?? null ), true )
+				&& ! in_array( $image, ProductImages::ids( $item['set'] ?? null ), true ) ) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
 	 * Indexes of the term-creating items of a change set.
 	 *
 	 * @param array<int,mixed> $items Items.
@@ -92,9 +138,16 @@ final class ApplyChangesAbility {
 	public static function conflicts( array $items ): array {
 		self::$in_admin = true;
 		try {
-			$self       = new self();
-			$self->refs = self::term_refs( $items );
-			$out        = array();
+			$self             = new self();
+			$self->refs       = self::term_refs( $items );
+			$self->media_refs = self::media_refs( $items );
+			$self->items      = array_map(
+				static function ( $item ) {
+					return (array) $item;
+				},
+				array_values( $items )
+			);
+			$out              = array();
 			foreach ( array_values( $items ) as $i => $item ) {
 				$reason = $self->check( (array) $item, SeoAdapters::current()->key() );
 				if ( '' !== $reason ) {
@@ -107,7 +160,7 @@ final class ApplyChangesAbility {
 			return $out;
 		} finally {
 			self::$in_admin = false;
-		}
+		}//end try
 	}
 
 	/**
@@ -122,7 +175,7 @@ final class ApplyChangesAbility {
 			self::NAME,
 			array(
 				'label'               => __( 'Apply an approved change set', 'addsynapse-store-assistant' ),
-				'description'         => 'Writes the values of a change set the shop owner approved (or restores them on Undo): price/stock fields of products and variations, SEO title/description/focus keyword, coupons, page/post content and status, featured images, navigation menus, the name, description and short description of products, custom fields of products, alt text / title / caption / description of media items, new posts and pages (Undo moves them to the trash), the categories, tags, brand and global attributes of a product (and the terms the change set creates for them), and the look of the site (styles, Additional CSS, theme settings, widgets, templates, Elementor). Refuses everything if anything no longer holds the expected values. A coupon above 50% off is refused here: it is approved in wp-admin (hold-changes).',
+				'description'         => 'Writes the values of a change set the shop owner approved (or restores them on Undo): price/stock fields of products and variations, SEO title/description/focus keyword, coupons, page/post content and status, featured images, navigation menus, the name, description and short description of products, the main image and gallery of products and variations (also with images the same change set adds from a link), custom fields of products, alt text / title / caption / description of media items, new posts and pages (Undo moves them to the trash), the categories, tags, brand and global attributes of a product (and the terms the change set creates for them), and the look of the site (styles, Additional CSS, theme settings, widgets, templates, Elementor). Refuses everything if anything no longer holds the expected values. A coupon above 50% off is refused here: it is approved in wp-admin (hold-changes).',
 				'category'            => AbilitiesRegistrar::CATEGORY,
 				'input_schema'        => array(
 					'type'                 => 'object',
@@ -194,8 +247,16 @@ final class ApplyChangesAbility {
 		$this->action = (string) ( $input['action'] ?? '' );
 		$items        = array_values( (array) $input['items'] );
 		$this->refs   = self::term_refs( $items );
-		$conflicts    = array();
-		$adapter      = SeoAdapters::current()->key();
+		// 1.3.16: product images may point at the images this change set adds ("@N").
+		$this->media_refs = self::media_refs( $items );
+		$this->items      = array_map(
+			static function ( $item ) {
+				return (array) $item;
+			},
+			$items
+		);
+		$conflicts        = array();
+		$adapter          = SeoAdapters::current()->key();
 		foreach ( $items as $i => $item ) {
 			$conflict = $this->check( (array) $item, $adapter );
 			if ( '' !== $conflict ) {
@@ -233,10 +294,12 @@ final class ApplyChangesAbility {
 		$last  = array();
 		$rest  = array();
 		foreach ( $items as $index => $item ) {
-			$is_term = 'term' === (string) $item['kind'];
-			if ( $is_term && 0 === (int) $item['id'] ) {
+			$is_term  = 'term' === (string) $item['kind'];
+			$is_media = 'media' === (string) $item['kind'];
+			if ( ( $is_term || $is_media ) && 0 === (int) $item['id'] ) {
 				$first[] = $index;
-			} elseif ( $is_term && ! is_array( $item['set'] ) ) {
+			} elseif ( ( $is_term || $is_media ) && ! is_array( $item['set'] ) ) {
+				// 1.3.16: an added image is deleted last, once the products of this change set no longer use it.
 				$last[] = $index;
 			} else {
 				$rest[] = $index;
@@ -322,15 +385,51 @@ final class ApplyChangesAbility {
 				);
 				continue;
 			}//end if
-			$set           = is_array( $item['set'] ) ? $item['set'] : null;
-			$before        = (int) $item['id'] ? StateUnits::read(
+			$set = is_array( $item['set'] ) ? $item['set'] : null;
+			if ( 'media' === $kind && null === $set && self::image_in_use( (int) $item['id'] ) ) {
+				// 1.3.16: still used somewhere else after the products got their images back: kept, never deleted.
+				$kept[]         = $index;
+				$ids[ $index ]  = (int) $item['id'];
+				$rows[ $index ] = array(
+					'id'   => (int) $item['id'],
+					'kind' => $kind,
+					'name' => wp_basename( (string) get_attached_file( (int) $item['id'] ) ),
+					'from' => StateUnits::for_log( $kind, $item['expect'] ),
+					'to'   => 'kept (in use)',
+				);
+				continue;
+			}
+			if ( ProductImages::handles( $kind ) && null !== $set ) {
+				$set = ProductImages::resolve( $set, $created );
+			}
+			$before = (int) $item['id'] ? StateUnits::read(
 				array(
 					'kind' => $kind,
 					'id'   => (int) $item['id'],
 				)
 			) : array();
-			$id            = StateUnits::write( $kind, (int) $item['id'], $set, (string) $input['changeset'], 'undo' === $this->action );
+			try {
+				$id = StateUnits::write( $kind, (int) $item['id'], $set, (string) $input['changeset'], 'undo' === $this->action );
+			} catch ( \Throwable $e ) {
+				// 1.3.16: one image of several could not be downloaded: the images this call already added are deleted again
+				// (nothing else was written yet: new images come first).
+				foreach ( 'media' === $kind && 0 === (int) $item['id'] ? $this->media_refs : array() as $ref ) {
+					if ( ! empty( $created[ $ref ] ) && 'media' === (string) $items[ $ref ]['kind'] ) {
+						wp_delete_attachment( (int) $created[ $ref ], true );
+					}
+				}
+				ApprovalLog::add( (string) $input['changeset'], (string) $input['action'], (string) ( $input['summary'] ?? '' ), array(), 'failed: ' . mb_substr( $e->getMessage(), 0, 150 ) );
+				throw $e;
+			}
 			$ids[ $index ] = $id;
+			if ( 'media' === $kind && 0 === (int) $item['id'] ) {
+				$created[ $index ] = $id;
+			}
+			if ( ProductImages::handles( $kind ) && null !== $set ) {
+				// 1.3.16: the ids as stored ("@N" resolved): AddSynapse records these as the values after Approve.
+				$stored            = ProductImages::read( $id );
+				$written[ $index ] = array_intersect_key( (array) $stored['values'], $set );
+			}
 			if ( 'content' === $kind && null !== $set ) {
 				// 1.3.10: the texts as WordPress stored them (cleaned): AddSynapse records these as the values after Approve.
 				$stored            = StateUnits::read(
@@ -397,6 +496,9 @@ final class ApplyChangesAbility {
 		if ( FieldUnits::handles( $kind ) ) {
 			return FieldUnits::problem( $kind, $id, $expect, $set );
 		}
+		if ( ProductImages::handles( $kind ) ) {
+			return ProductImages::problem( $id, $expect, $set, $this->media_refs );
+		}
 		if ( null !== $set ) {
 			$invalid = StateUnits::invalid( $kind, $set );
 			if ( '' !== $invalid ) {
@@ -451,7 +553,7 @@ final class ApplyChangesAbility {
 			return 'Changed since the draft.';
 		}
 		// Undo of an added image deletes it — never while the site uses it (a page, the logo, the site icon…).
-		if ( 'media' === $kind && null === $set && self::image_in_use( $id ) ) {
+		if ( 'media' === $kind && null === $set && self::image_in_use( $id ) && ! $this->released_here( $id ) ) {
 			return 'The image is used on the site now, so it is not deleted. Remove it there first (or keep it).';
 		}
 		if ( 'template' === $kind && null !== $set ) {

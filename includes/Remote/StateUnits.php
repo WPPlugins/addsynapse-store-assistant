@@ -41,7 +41,7 @@ defined( 'ABSPATH' ) || exit;
  */
 final class StateUnits {
 
-	public const KINDS = array( 'product', 'seo', 'coupon', 'content', 'featured', 'menu', 'template', 'media', 'styles', 'css', 'setting', 'widgets', 'doc', 'kit', 'tracking', 'script', 'product_terms', 'term', 'product_meta', 'media_text', 'post', 'product_text', 'product_new' );
+	public const KINDS = array( 'product', 'seo', 'coupon', 'content', 'featured', 'menu', 'template', 'media', 'styles', 'css', 'setting', 'widgets', 'doc', 'kit', 'tracking', 'script', 'product_terms', 'term', 'product_meta', 'media_text', 'post', 'product_text', 'product_new', 'product_images' );
 
 	/** Content fields the remote route may change. */
 	public const CONTENT_FIELDS = array( 'title', 'excerpt', 'content', 'status' );
@@ -136,6 +136,9 @@ final class StateUnits {
 		}
 		if ( FieldUnits::handles( $kind ) ) {
 			return FieldUnits::read( $kind, $id );
+		}
+		if ( ProductImages::handles( $kind ) ) {
+			return Environment::has_woocommerce() ? ProductImages::read( $id ) : self::missing( $kind, $id, 'WooCommerce is not active on this site.' );
 		}
 		if ( in_array( $kind, array( 'product', 'coupon' ), true ) && ! Environment::has_woocommerce() ) {
 			return self::missing( $kind, $id, 'WooCommerce is not active on this site.' );
@@ -285,6 +288,9 @@ final class StateUnits {
 		if ( FieldUnits::handles( $kind ) ) {
 			return FieldUnits::holds( $kind, $now, $expect );
 		}
+		if ( ProductImages::handles( $kind ) ) {
+			return ProductImages::holds( $now, $expect );
+		}
 		if ( 'menu' === $kind ) {
 			$a = is_array( $now['menu'] ?? null ) ? $now['menu'] : array();
 			$b = is_array( $expect['menu'] ?? null ) ? $expect['menu'] : array();
@@ -336,6 +342,9 @@ final class StateUnits {
 		}
 		if ( FieldUnits::handles( $kind ) ) {
 			return FieldUnits::invalid( $kind, $set );
+		}
+		if ( ProductImages::handles( $kind ) ) {
+			return ProductImages::invalid( $set );
 		}
 		$fields  = array(
 			'product'  => self::PRODUCT_FIELDS,
@@ -462,6 +471,9 @@ final class StateUnits {
 	 * @throws \RuntimeException On a write that cannot be done.
 	 */
 	public static function write( string $kind, int $id, ?array $set, string $changeset = '', bool $undo = false ): int {
+		if ( ProductImages::handles( $kind ) ) {
+			return ProductImages::write( $id, (array) $set );
+		}
 		if ( 'content' === $kind ) {
 			$texts = array_intersect_key( (array) $set, array_flip( array( 'title', 'excerpt', 'content' ) ) );
 			if ( ! $undo && $texts ) {
