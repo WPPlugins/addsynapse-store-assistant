@@ -6,7 +6,7 @@ Tested up to: 7.1
 Requires PHP: 7.4
 WC requires at least: 8.0
 WC tested up to: 11.1
-Stable tag: 1.3.16
+Stable tag: 1.3.17
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -249,6 +249,10 @@ The plugin sends nothing itself. Only after you approve a measurement code (from
 
 == Changelog ==
 
+= 1.3.17 =
+* Fix: connecting from Claude or ChatGPT on sites where other plugins make WordPress check the sign-in very early. The connection password AddSynapse receives was not recognised there, so the connection could not be completed. It is now always recognised and limited to this plugin's own routes.
+* After activation, a connection started in ChatGPT continues to «Yes, connect» by itself, as it already did for Claude.
+
 = 1.3.16 =
 * New: product images from Claude or ChatGPT. Say «Using AddSynapse, set image 123 as the main image of the Blue Chair and add it to the gallery of the Red Chair» — main image and gallery (add, remove, replace, reorder) of products and variations, from images of your media library or (from Claude) from a public https address you give; that image is downloaded only when you approve. You see the images before and after, nothing changes until you approve, and Undo puts back exactly the previous images (and deletes an image it added while nothing else uses it).
 * Product details now show the ids of the main image and the gallery.
@@ -383,6 +387,9 @@ The plugin sends nothing itself. Only after you approve a measurement code (from
 * First release on WordPress.org: chat in wp-admin, read tools, previews with Approve and Undo for prices, stock, categories, attributes, variations, product details, menus, pages, SEO, orders and coupons, CSV import, 5-day free trial without sign-up, then a free read-only plan; Subscribe from the plugin. Bulk previews show how many questions they count (10 products = 1 question). Slash commands, previews, Approve, Undo, voice input and Show me work for everyone, without a connection or subscription.
 
 == Upgrade Notice ==
+
+= 1.3.17 =
+Fixes connecting on sites where other plugins check the sign-in very early; a connection started in ChatGPT continues after activation.
 
 = 1.3.16 =
 Product images (main image and gallery, also of variations) from Claude or ChatGPT, with Approve and Undo.

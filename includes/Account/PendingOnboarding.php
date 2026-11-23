@@ -14,7 +14,10 @@ defined( 'ABSPATH' ) || exit;
  * Claude path, not on a choice between two ways. AddSynapse knows whether a connection for this site address was started
  * there; the plugin asks once:
  *
- *   GET {api}/api/onboarding/pending?site=<home URL>  →  {"from":"claude"} | {"from":null}
+ *   GET {api}/api/onboarding/pending?site=<home URL>  →  {"from":"claude"} | {"from":"chatgpt"} | {"from":null}
+ *
+ * 1.3.17: «chatgpt» is understood too, only to continue the connection after activation (HomePage::maybe_start_from_claude);
+ * the Claude-worded screens still need «claude».
  *
  * Only the site's address is sent (no user, email, key, version or store data); no cookie, no tracking id. The call is
  * made only for an administrator, while nothing is set up yet: right after they activate the plugin (the next admin page)
@@ -27,7 +30,7 @@ final class PendingOnboarding {
 	/** API path. */
 	public const PATH = '/api/onboarding/pending';
 
-	/** Transient with the last answer: 'claude' | 'none'. Removed by uninstall.php (addsynapse_assistant_ prefix). */
+	/** Transient with the last answer: 'claude' | 'chatgpt' | 'none'. Removed by uninstall.php (addsynapse_assistant_ prefix). */
 	public const TRANSIENT = 'addsynapse_assistant_onboarding_from';
 
 	/** How long an answer is kept. */
@@ -51,6 +54,14 @@ final class PendingOnboarding {
 	}
 
 	/**
+	 * The AI app the pending connection was started from: 'claude' | 'chatgpt' | '' (nothing pending).
+	 */
+	public static function from_ai(): string {
+		$answer = self::answer();
+		return 'none' === $answer ? '' : $answer;
+	}
+
+	/**
 	 * The last answer without asking again (the confirm screen and «Done — go back to Claude» after the connection).
 	 */
 	public static function cached_from_claude(): bool {
@@ -58,14 +69,14 @@ final class PendingOnboarding {
 	}
 
 	/**
-	 * 'claude' | 'none' (cached; asks AddSynapse at most once per 10 minutes).
+	 * 'claude' | 'chatgpt' | 'none' (cached; asks AddSynapse at most once per 10 minutes).
 	 */
 	private static function answer(): string {
 		if ( null !== self::$memo ) {
 			return self::$memo;
 		}
 		$cached = get_transient( self::TRANSIENT );
-		if ( in_array( $cached, array( 'claude', 'none' ), true ) ) {
+		if ( in_array( $cached, array( 'claude', 'chatgpt', 'none' ), true ) ) {
 			self::$memo = (string) $cached;
 			return self::$memo;
 		}
@@ -75,7 +86,7 @@ final class PendingOnboarding {
 	}
 
 	/**
-	 * The one GET request. Never throws; anything but a clean {"from":"claude"} is 'none'.
+	 * The one GET request. Never throws; anything but a clean {"from":"claude"} or {"from":"chatgpt"} is 'none'.
 	 */
 	private static function ask(): string {
 		$base = Api::base_url();
@@ -95,7 +106,7 @@ final class PendingOnboarding {
 			return 'none';
 		}
 		$body = json_decode( (string) wp_remote_retrieve_body( $response ), true );
-		return is_array( $body ) && isset( $body['from'] ) && 'claude' === $body['from'] ? 'claude' : 'none';
+		return is_array( $body ) && isset( $body['from'] ) && in_array( $body['from'], array( 'claude', 'chatgpt' ), true ) ? $body['from'] : 'none';
 	}
 
 	/**

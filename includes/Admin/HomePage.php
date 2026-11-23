@@ -126,10 +126,12 @@ final class HomePage {
 			// a new connection started in Claude (satest 24/10). Only a working connection does.
 			return;
 		}
-		if ( ! PendingOnboarding::from_claude() ) {
+		// 1.3.17: a connection started in ChatGPT continues the same way (AddSynapse answers «chatgpt»).
+		$ai = PendingOnboarding::from_ai();
+		if ( '' === $ai ) {
 			return;
 		}
-		$url = Api::claude_connect_url( home_url( '/' ), 'claude' );
+		$url = Api::claude_connect_url( home_url( '/' ), $ai );
 		if ( ! Api::link_allowed( $url ) ) {
 			return;
 		}

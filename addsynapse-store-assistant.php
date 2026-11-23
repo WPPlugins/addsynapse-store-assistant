@@ -3,7 +3,7 @@
  * Plugin Name:       AddSynapse – AI Website & Store Assistant for WooCommerce
  * Plugin URI:        https://addsynapse.com/store-assistant
  * Description:       Admin chat where shop managers ask, in their own language, about their store and for changes to one product at a time — with your own Anthropic or OpenAI API key. Every change is a preview a person approves, with Undo.
- * Version:           1.3.16
+ * Version:           1.3.17
  * Requires at least: 6.9
  * Requires PHP:      7.4
  * Author:            AddSynapse
@@ -19,7 +19,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'ADDSYNAPSE_ASSISTANT_VERSION', '1.3.16' );
+define( 'ADDSYNAPSE_ASSISTANT_VERSION', '1.3.17' );
 define( 'ADDSYNAPSE_ASSISTANT_PLUGIN_FILE', __FILE__ );
 define( 'ADDSYNAPSE_ASSISTANT_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'ADDSYNAPSE_ASSISTANT_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
@@ -68,5 +68,12 @@ add_action(
 		}
 	}
 );
+
+// 1.3.17: the two listeners that recognise AddSynapse's own application password are registered here, while the plugin file
+// loads, not on plugins_loaded. WordPress cannot check a password before every plugin file is loaded, so they are always in
+// place first — also when another plugin makes WordPress check the password during plugins_loaded (then the password was not
+// recognised and not limited to this plugin's routes). Nothing runs here: the class loads only if such a password is used.
+add_action( 'application_password_did_authenticate', array( \Addsynapse\StoreAssistant\Remote\RemoteAccess::class, 'remember' ), 10, 2 );
+add_action( 'wp_authenticate_application_password_errors', array( \Addsynapse\StoreAssistant\Remote\RemoteAccess::class, 'no_xmlrpc' ), 10, 3 );
 
 add_action( 'plugins_loaded', array( \Addsynapse\StoreAssistant\Plugin::class, 'boot' ) );

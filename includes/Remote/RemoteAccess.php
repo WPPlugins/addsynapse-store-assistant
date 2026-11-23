@@ -101,9 +101,8 @@ final class RemoteAccess {
 	 */
 	public static function register_hooks(): void {
 		self::maybe_use_fallback_header();
-		add_action( 'application_password_did_authenticate', array( self::class, 'remember' ), 10, 2 );
+		// 1.3.17: `remember` and `no_xmlrpc` are registered in the main plugin file (before any password can be checked).
 		add_filter( 'rest_pre_dispatch', array( self::class, 'gate' ), 10, 3 );
-		add_action( 'wp_authenticate_application_password_errors', array( self::class, 'no_xmlrpc' ), 10, 3 );
 		add_action( 'rest_api_init', array( self::class, 'register_routes' ) );
 		add_action( 'wp_abilities_api_init', array( self::class, 'register_abilities' ), 20 );
 		RelayKeys::register_hooks();
@@ -191,14 +190,36 @@ final class RemoteAccess {
 		if ( null !== self::$key ) {
 			return RelayKeys::REF_PREFIX . self::$key['id'];
 		}
-		return is_array( self::$item ) && isset( self::$item['uuid'] ) ? (string) self::$item['uuid'] : '';
+		return self::scoped() && isset( self::$item['uuid'] ) ? (string) self::$item['uuid'] : '';
+	}
+
+	/**
+	 * Whether our application password authenticated this request. Normally WordPress told us (remember). Safety net (1.3.17):
+	 * when that moment was missed, ask WordPress which application password signed this request in and read its app_id —
+	 * the same test, on the same record. Never during a connection-key request (as_key_user), and nothing is cached when
+	 * the answer is «no».
+	 */
+	private static function scoped(): bool {
+		if ( self::$scoped || null !== self::$key ) {
+			return self::$scoped;
+		}
+		if ( ! function_exists( 'rest_get_authenticated_app_password' ) || ! class_exists( '\WP_Application_Passwords' ) ) {
+			return false;
+		}
+		$uuid = rest_get_authenticated_app_password();
+		$user = get_current_user_id();
+		if ( ! is_string( $uuid ) || '' === $uuid || $user <= 0 ) {
+			return false;
+		}
+		self::remember( null, \WP_Application_Passwords::get_user_application_password( $user, $uuid ) );
+		return self::$scoped;
 	}
 
 	/**
 	 * Whether this request is AddSynapse's (its connection key, or its scoped application password).
 	 */
 	public static function is_addsynapse(): bool {
-		return null !== self::$key || self::$scoped;
+		return null !== self::$key || self::scoped();
 	}
 
 	/**
@@ -232,8 +253,8 @@ final class RemoteAccess {
 	/**
 	 * Remembers whether our application password authenticated this request.
 	 *
-	 * @param \WP_User            $user User.
-	 * @param array<string,mixed> $item Application password record.
+	 * @param \WP_User|null             $user User (not used).
+	 * @param array<string,mixed>|mixed $item Application password record.
 	 */
 	public static function remember( $user, $item ): void {
 		self::$scoped = is_array( $item ) && isset( $item['app_id'] ) && self::APP_ID === $item['app_id'];
@@ -249,7 +270,7 @@ final class RemoteAccess {
 	 * @return mixed
 	 */
 	public static function gate( $result, $server, $request ) {
-		if ( ! self::$scoped ) {
+		if ( ! self::scoped() ) {
 			return $result;
 		}
 		$route = (string) $request->get_route();
@@ -426,7 +447,7 @@ final class RemoteAccess {
 	 */
 	public static function ping() {
 		$user = wp_get_current_user();
-		$item = self::$item;
+		$item = self::scoped() ? self::$item : null;
 		return rest_ensure_response(
 			array(
 				'ok'             => true,
@@ -516,7 +537,7 @@ final class RemoteAccess {
 			PlanInfo::forget();
 			return rest_ensure_response( array( 'deleted' => $deleted ) );
 		}
-		if ( ! self::$scoped || empty( self::$item['uuid'] ) ) {
+		if ( ! self::scoped() || empty( self::$item['uuid'] ) ) {
 			return new \WP_Error( 'addsynapse_assistant_not_remote', 'Only the AddSynapse application can disconnect itself.', array( 'status' => 400 ) );
 		}
 		$deleted = \WP_Application_Passwords::delete_application_password( get_current_user_id(), (string) self::$item['uuid'] );
