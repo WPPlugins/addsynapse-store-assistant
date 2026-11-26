@@ -12,6 +12,7 @@ namespace Addsynapse\StoreAssistant\Menus;
 use Addsynapse\StoreAssistant\Abilities\Shared;
 use Addsynapse\StoreAssistant\Adapters\Menu\MenuAdapterInterface;
 use Addsynapse\StoreAssistant\Adapters\Menu\MenuAdapters;
+use Addsynapse\StoreAssistant\Links\OwnLinks;
 use WP_Error;
 
 defined( 'ABSPATH' ) || exit;
@@ -29,7 +30,12 @@ class MenuPlanner {
 
 	public const OPS = array( 'create_menu', 'add_item', 'rename_item', 'move_item', 'remove_item', 'assign_location' );
 
-	public const OBJECTS = array( 'product_cat', 'product', 'page', 'post', 'custom' );
+	public const OBJECTS = array( 'product_cat', 'product_tag', 'category', 'product', 'page', 'post', 'custom' );
+
+	/**
+	 * Taxonomies a menu item can link to (1.3.20: product tags and post categories too).
+	 */
+	public const TAXONOMIES = array( 'product_cat', 'product_tag', 'category' );
 
 	public const MAX_OPS   = 30;
 	public const MAX_ITEMS = 500;
@@ -315,7 +321,7 @@ class MenuPlanner {
 	private function new_node( array $op ) {
 		$object = (string) ( $op['object'] ?? '' );
 		if ( ! in_array( $object, self::OBJECTS, true ) ) {
-			return new WP_Error( 'addsynapse_assistant_menu', 'add_item needs object: product_cat, product, page, post or custom.' );
+			return new WP_Error( 'addsynapse_assistant_menu', 'add_item needs object: product_cat, product_tag, category, product, page, post or custom (custom only for other websites).' );
 		}
 		$title = self::clean_title( (string) ( $op['title'] ?? '' ) );
 		if ( 'custom' === $object ) {
@@ -330,21 +336,39 @@ class MenuPlanner {
 				'id'   => 0,
 				'name' => $title,
 			);
+			// 1.3.20 (25/11/2026): a typed address into the shop must exist; when it names a category / page / product the
+			// item links to that item, so WordPress makes (and keeps) its address.
+			if ( OwnLinks::is_own( $url ) ) {
+				$own = OwnLinks::resolve( $url );
+				if ( '' !== $own['problem'] ) {
+					return new WP_Error( 'addsynapse_assistant_menu_url', $own['problem'] );
+				}
+				$target = is_array( $own['object'] ) ? (string) $own['object']['type'] : '';
+				if ( '' !== $target && in_array( $target, self::OBJECTS, true ) ) {
+					$object   = $target;
+					$url      = '';
+					$resolved = array(
+						'id'   => (int) $own['object']['id'],
+						'name' => $title,
+					);
+				}
+			}
 		} else {
 			$url      = '';
 			$resolved = self::resolve_object( $object, (int) ( $op['object_id'] ?? 0 ), (string) ( $op['object_name'] ?? '' ) );
 			if ( is_wp_error( $resolved ) ) {
 				return $resolved;
 			}
-		}
+		}//end if
 		++$this->next;
 		$label = '' !== $title ? $title : $resolved['name'];
+		$link  = 'custom' === $object ? $url : OwnLinks::object_link( in_array( $object, self::TAXONOMIES, true ) ? 'taxonomy' : 'post-type', $object, (int) $resolved['id'] );
 		return array(
 			'id'       => 'new:' . $this->next,
 			'label'    => $label,
 			'title'    => $label,
 			'parent'   => 0,
-			'link'     => 'custom' === $object ? $url : '',
+			'link'     => $link,
 			'children' => array(),
 		) + $this->adapter->new_item( $object, (int) $resolved['id'], $url );
 	}
@@ -385,22 +409,22 @@ class MenuPlanner {
 		if ( $id < 1 && '' === $name ) {
 			return new WP_Error( 'addsynapse_assistant_menu', 'Give object_id or object_name.' );
 		}
-		if ( 'product_cat' === $object_type ) {
-			if ( ! taxonomy_exists( 'product_cat' ) ) {
-				return new WP_Error( 'addsynapse_assistant_menu', 'Product categories are not available.' );
+		if ( in_array( $object_type, self::TAXONOMIES, true ) ) {
+			if ( ! taxonomy_exists( $object_type ) ) {
+				return new WP_Error( 'addsynapse_assistant_menu', sprintf( 'The taxonomy "%s" is not available on this site.', $object_type ) );
 			}
 			if ( $id > 0 ) {
-				$term = get_term( $id, 'product_cat' );
+				$term = get_term( $id, $object_type );
 				return $term instanceof \WP_Term ? array(
 					'id'   => (int) $term->term_id,
 					'name' => html_entity_decode( (string) $term->name, ENT_QUOTES, 'UTF-8' ),
-				) : new WP_Error( 'addsynapse_assistant_menu', sprintf( 'Product category %d does not exist.', $id ) );
+				) : new WP_Error( 'addsynapse_assistant_menu', sprintf( 'Term %1$d of %2$s does not exist.', $id, $object_type ) );
 			}
 			$key   = MenuTree::key( $name );
 			$found = array();
 			$terms = get_terms(
 				array(
-					'taxonomy'   => 'product_cat',
+					'taxonomy'   => $object_type,
 					'hide_empty' => false,
 					'number'     => 2000,
 				)
@@ -417,9 +441,9 @@ class MenuPlanner {
 				);
 			}
 			if ( $found ) {
-				return new WP_Error( 'addsynapse_assistant_menu', sprintf( 'Several product categories are named "%1$s" (ids %2$s): use object_id.', $name, implode( ', ', wp_list_pluck( $found, 'term_id' ) ) ) );
+				return new WP_Error( 'addsynapse_assistant_menu', sprintf( 'Several %1$s terms are named "%2$s" (ids %3$s): use object_id.', $object_type, $name, implode( ', ', wp_list_pluck( $found, 'term_id' ) ) ) );
 			}
-			return new WP_Error( 'addsynapse_assistant_menu', sprintf( 'No product category is named "%s". Use find_terms (taxonomy product_cat) to find the closest one and confirm it with the manager.', $name ) );
+			return new WP_Error( 'addsynapse_assistant_menu', sprintf( 'No %1$s term is named "%2$s". Use find_terms (taxonomy %1$s) to find the closest one and confirm it with the manager.', $object_type, $name ) );
 		}//end if
 		if ( ! post_type_exists( $object_type ) ) {
 			// E.g. `product` on a site without WooCommerce.

@@ -58,6 +58,7 @@ final class BlocksEdit extends Planner {
 		}
 		$raw      = (string) $doc['raw'];
 		$expanded = BlockMarkup::expand( $raw );
+		\Addsynapse\StoreAssistant\Links\OwnLinks::remember( $raw . "\n" . $expanded );
 		try {
 			$tree = new BlockDoc( $expanded );
 		} catch ( \RuntimeException $e ) {
@@ -81,6 +82,11 @@ final class BlocksEdit extends Planner {
 		$new = $tree->serialize();
 		if ( $new === $expanded ) {
 			return $this->store( array(), self::OPERATION, sprintf( '%s: nothing would change.', $doc['title'] ), array(), $user_id, $conversation_id );
+		}
+		try {
+			$new = \Addsynapse\StoreAssistant\Links\OwnLinks::fix_nav_links( $new );
+		} catch ( \InvalidArgumentException $e ) {
+			return new WP_Error( 'addsynapse_assistant_design_link', html_entity_decode( $e->getMessage(), ENT_QUOTES, 'UTF-8' ) );
 		}
 		$problem = self::final_problem( $new );
 		if ( '' !== $problem ) {

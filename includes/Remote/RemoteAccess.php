@@ -66,9 +66,13 @@ final class RemoteAccess {
 		HoldChangesAbility::NAME,
 		PageTemplates::NAME,
 		CheckMediaUrlAbility::NAME,
+		CheckLinksAbility::NAME,
 		ReadFieldsAbility::NAME,
 		TrackingAbilities::DESCRIBE,
 		TrackingAbilities::PLAN,
+		OrderAbilities::FIND,
+		OrderAbilities::GET,
+		OrderAbilities::PREVIEW,
 	);
 
 	/** Write abilities (owner-approved change sets only; never agent tools). */
@@ -329,6 +333,8 @@ final class RemoteAccess {
 		( new ApplyChangesAbility() )->register();
 		( new PageTemplates() )->register();
 		( new CheckMediaUrlAbility() )->register();
+		// 1.3.20: links into the site in drafts AddSynapse builds itself (texts, new posts and products).
+		( new CheckLinksAbility() )->register();
 		( new ReadFieldsAbility() )->register();
 		// 1.3.15: measurement codes and scripts added by the AI (with or without WooCommerce).
 		( new TrackingAbilities() )->register();
@@ -339,6 +345,8 @@ final class RemoteAccess {
 		( new ListTermsAbility() )->register();
 		( new ApplyPricesAbility() )->register();
 		( new HoldChangesAbility() )->register();
+		// 1.3.18: orders (find, details, preview of a new one — created only by apply-changes after Approve).
+		( new OrderAbilities() )->register();
 	}
 
 	/**

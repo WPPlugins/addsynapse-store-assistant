@@ -260,7 +260,16 @@ final class SeoPlanner extends Planner {
 					break;
 				default:
 					$result = SeoText::html( $text, 'short_description' === $key ? SeoText::SHORT_MAX : SeoText::LONG_MAX );
-			}
+					if ( ! is_wp_error( $result ) ) {
+						// 1.3.20: a new link into the shop must lead to something that exists.
+						$short   = 'short_description' === $key;
+						$current = $product instanceof \WP_Post ? (string) ( $short ? $product->post_excerpt : $product->post_content ) : (string) ( $short ? $product->get_short_description( 'edit' ) : $product->get_description( 'edit' ) );
+						$problem = \Addsynapse\StoreAssistant\Links\OwnLinks::html_problem( is_array( $result ) ? (string) $result['value'] : (string) $result, $current );
+						if ( '' !== $problem ) {
+							$result = new WP_Error( 'addsynapse_assistant_seo_link', '— ' . $problem );
+						}
+					}
+			}//end switch
 			if ( is_wp_error( $result ) ) {
 				$errors[] = $product instanceof \WP_Post
 					? sprintf( '%1$s %2$d (%3$s) %4$s %5$s.', ucfirst( $product->post_type ), $product->ID, mb_substr( html_entity_decode( (string) $product->post_title, ENT_QUOTES, 'UTF-8' ), 0, 60 ), $key, $result->get_error_message() )

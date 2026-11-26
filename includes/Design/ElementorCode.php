@@ -44,6 +44,11 @@ final class ElementorCode {
 	private const VIDEO_SRC = '#^https://(?:www\.)?(?:youtube\.com/embed/|youtube-nocookie\.com/embed/|player\.vimeo\.com/video/)[A-Za-z0-9_\-/?=&;.%]*$#';
 
 	/**
+	 * 1.3.19: Google Maps embeds (the «Embed a map» address of Google Maps; maps.google.com/maps?…output=embed), https only.
+	 */
+	private const MAP_SRC = '~^https://(?:www\.google\.com/maps/embed\?|maps\.google\.com/maps\?(?=[^#]*\boutput=embed\b))[A-Za-z0-9_\-/?=&;.%!:,+]*$~';
+
+	/**
 	 * Tags refused in HTML (besides script / style / iframe, checked on their own).
 	 */
 	private const BAD_TAGS = '/<\s*\/?\s*(object|embed|applet|frame|frameset|base|meta|link|form|input|textarea|select|option|button|svg|math|template|noscript)\b/i';
@@ -57,7 +62,9 @@ final class ElementorCode {
 		if ( in_array( $key, self::SAFE_KEYS, true ) ) {
 			return '';
 		}
-		if ( preg_match( '/script|(^|_)js($|_)|shortcode|_code$|^code$/i', $key ) ) {
+		// 1.3.19: «script» only as a whole part of the name (custom_script, script, javascript): a bare /script/ also
+		// matched de-script-ion, so icon-box / image-box `description_text` and every `description` were refused (customer 175).
+		if ( preg_match( '/(^|_)(java)?scripts?($|_)|(^|_)js($|_)|shortcode|_code$|^code$/i', $key ) ) {
 			return 'closed';
 		}
 		if ( preg_match( '/css/i', $key ) ) {
@@ -163,23 +170,14 @@ final class ElementorCode {
 		if ( preg_match_all( '/<\s*iframe\b([^>]*)>/i', $html, $frames ) ) {
 			foreach ( $frames[1] as $attrs ) {
 				$src = self::attr( $attrs, 'src' );
-				if ( ! preg_match( self::VIDEO_SRC, html_entity_decode( $src, ENT_QUOTES, 'UTF-8' ) ) ) {
-					throw new \InvalidArgumentException( 'Only YouTube or Vimeo videos (an https embed address: youtube.com/embed/…, player.vimeo.com/video/…) may be embedded with <iframe>.' );
+				if ( ! self::embed_src( html_entity_decode( $src, ENT_QUOTES, 'UTF-8' ) ) ) {
+					throw new \InvalidArgumentException( 'Only YouTube or Vimeo videos and Google Maps (an https embed address: youtube.com/embed/…, player.vimeo.com/video/…, google.com/maps/embed?…) may be embedded with <iframe>.' );
 				}
 			}
 		}
-		if ( preg_match_all( '/<\s*img\b([^>]*)>/i', $html, $images ) ) {
-			foreach ( $images[1] as $attrs ) {
-				$urls = array( self::attr( $attrs, 'src' ) );
-				foreach ( explode( ',', self::attr( $attrs, 'srcset' ) ) as $candidate ) {
-					$urls[] = (string) strtok( trim( $candidate ), ' ' );
-				}
-				foreach ( $urls as $i => $url ) {
-					if ( ( 0 === $i || '' !== $url ) && ! self::own_url( html_entity_decode( $url, ENT_QUOTES, 'UTF-8' ) ) ) {
-						throw new \InvalidArgumentException( 'Images in HTML must come from this site (the address of a media library image from find_media).' );
-					}
-				}
-			}
+		$images = self::images_problem( $html );
+		if ( '' !== $images ) {
+			throw new \InvalidArgumentException( esc_html( $images ) );
 		}
 		if ( preg_match_all( '/\bhref\s*=\s*(?:"([^"]*)"|\'([^\']*)\'|([^\s>]+))/i', $html, $links, PREG_SET_ORDER ) ) {
 			foreach ( $links as $match ) {
@@ -211,7 +209,20 @@ final class ElementorCode {
 			'id'              => true,
 			'style'           => true,
 		);
-		return trim( wp_kses( $html, $allowed, array( 'http', 'https', 'mailto', 'tel' ) ) );
+		$clean = trim( wp_kses( $html, $allowed, array( 'http', 'https', 'mailto', 'tel' ) ) );
+		// 1.3.19: images and iframes again on what kses kept (normal quoted attributes): a «>» inside a quoted attribute cannot hide them.
+		$images = self::images_problem( $clean );
+		if ( '' !== $images ) {
+			throw new \InvalidArgumentException( esc_html( $images ) );
+		}
+		if ( preg_match_all( '/<\s*iframe\b([^>]*)>/i', $clean, $frames ) ) {
+			foreach ( $frames[1] as $attrs ) {
+				if ( ! self::embed_src( html_entity_decode( self::attr( $attrs, 'src' ), ENT_QUOTES, 'UTF-8' ) ) ) {
+					throw new \InvalidArgumentException( 'Only YouTube or Vimeo videos and Google Maps (an https embed address) may be embedded with <iframe>.' );
+				}
+			}
+		}
+		return $clean;
 	}
 
 	/**
@@ -330,6 +341,68 @@ final class ElementorCode {
 	private static function attr( string $attrs, string $name ): string {
 		if ( preg_match( '/(?:^|\s)' . preg_quote( $name, '/' ) . '\s*=\s*(?:"([^"]*)"|\'([^\']*)\'|([^\s>]+))/i', $attrs, $m ) ) {
 			return (string) ( $m[1] ?? '' ) . (string) ( $m[2] ?? '' ) . (string) ( $m[3] ?? '' );
+		}
+		return '';
+	}
+
+	/**
+	 * Whether an <iframe> address is an allowed embed: https YouTube / Vimeo video or Google Maps (1.3.19).
+	 *
+	 * @param string $src Address (entities decoded).
+	 */
+	public static function embed_src( string $src ): bool {
+		return (bool) preg_match( self::VIDEO_SRC, $src ) || (bool) preg_match( self::MAP_SRC, $src );
+	}
+
+	/**
+	 * 1.3.19: images inside Elementor text (text-editor and the other rich texts) — only images of this site, as in the html
+	 * widget ('' = fine). Images from elsewhere would load another server's file in every visitor's browser.
+	 *
+	 * @param string $html Text.
+	 */
+	public static function images_problem( string $html ): string {
+		if ( ! preg_match_all( '/<\s*img\b([^>]*)>/i', $html, $images ) ) {
+			return '';
+		}
+		foreach ( $images[1] as $attrs ) {
+			$urls = array( self::attr( $attrs, 'src' ) );
+			foreach ( explode( ',', self::attr( $attrs, 'srcset' ) ) as $candidate ) {
+				$urls[] = (string) strtok( trim( $candidate ), ' ' );
+			}
+			foreach ( $urls as $i => $url ) {
+				if ( ( 0 === $i || '' !== $url ) && ! self::own_url( html_entity_decode( $url, ENT_QUOTES, 'UTF-8' ) ) ) {
+					return 'Images in text must come from this site (the address of a media library image from find_media).';
+				}
+			}
+		}
+		return '';
+	}
+
+	/**
+	 * 1.3.19: why code in a TEXT setting (text-editor `editor`, icon-box `description_text`, …) is refused, with the safe way
+	 * to do the same ('' = no code). Texts stay plain page text; embeds go into their own widgets, CSS into custom_css.
+	 *
+	 * @param string $key   Setting key.
+	 * @param string $value Text.
+	 */
+	public static function text_code_problem( string $key, string $value ): string {
+		$decoded = html_entity_decode( $value, ENT_QUOTES | ENT_HTML5, 'UTF-8' );
+		$what    = '';
+		foreach ( array( $value, $decoded ) as $candidate ) {
+			if ( preg_match( '/<\s*\/?\s*script\b|[\s"\'\/]on[a-z]+\s*=|(?:java|vb)script\s*:/i', $candidate ) ) {
+				return sprintf( 'The text in "%s" contains code (a script, an on…= event handler or a javascript: link), which stays closed: it would run in every visitor\'s browser. Write the text without it; links are plain <a href="https://…"> or /path.', $key );
+			}
+			if ( preg_match( '/<\s*\/?\s*(iframe|object|embed)\b/i', $candidate ) ) {
+				$what = 'embed';
+			} elseif ( '' === $what && preg_match( '/<\s*\/?\s*style\b|expression\s*\(|@import/i', $candidate ) ) {
+				$what = 'css';
+			}
+		}
+		if ( 'embed' === $what ) {
+			return sprintf( 'The text in "%s" contains code (an <iframe> / embed), which a text does not hold. Do it as its own element instead: a YouTube or Vimeo video → insert a widget {"widgetType":"video","settings":{"youtube_url":"https://www.youtube.com/watch?v=…"}}; a map → {"widgetType":"google_maps","settings":{"address":"…"}}; another YouTube / Vimeo / Google Maps embed code → {"widgetType":"html","settings":{"html":"<iframe src=\"https://…\"></iframe>"}}. Keep the text itself without the <iframe>.', $key );
+		}
+		if ( 'css' === $what ) {
+			return sprintf( 'The text in "%s" contains code (a <style> tag or CSS), which a text does not hold. Put the CSS in the element\'s custom_css setting (Elementor Pro) or in Additional CSS (plan_theme_settings); simple inline styles such as <span style="color:#c00"> stay allowed in the text.', $key );
 		}
 		return '';
 	}

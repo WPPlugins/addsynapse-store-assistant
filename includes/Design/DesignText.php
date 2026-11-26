@@ -44,11 +44,12 @@ final class DesignText {
 	/**
 	 * Rich text for a heading or text node → safe HTML.
 	 *
-	 * @param string $html    Proposed HTML.
-	 * @param string $context heading|text.
+	 * @param string $html       Proposed HTML.
+	 * @param string $context    heading|text.
+	 * @param bool   $own_images Allow <img> (the caller has checked they are this site's; Elementor texts, 1.3.19).
 	 * @return array{html:string,external:array<int,string>}|WP_Error
 	 */
-	public static function rich( string $html, string $context ) {
+	public static function rich( string $html, string $context, bool $own_images = false ) {
 		$html = trim( str_replace( "\r\n", "\n", $html ) );
 		if ( '' === $html ) {
 			return new WP_Error( 'addsynapse_assistant_content_empty', 'The new text is empty. To remove an element, ask the manager to do it in the page editor.' );
@@ -74,14 +75,19 @@ final class DesignText {
 				}
 			}
 		}
-		if ( preg_match( '/<\s*img\b/i', $html ) ) {
+		if ( ! $own_images && preg_match( '/<\s*img\b/i', $html ) ) {
 			return new WP_Error( 'addsynapse_assistant_content_unsafe', 'Images cannot be added inside text. Change an image node instead (image_id of an existing media library image).' );
 		}
 		$allowed = wp_kses_allowed_html( 'post' );
+		$img     = is_array( $allowed['img'] ?? null ) ? $allowed['img'] : array();
 		if ( 'heading' === $context ) {
 			$allowed = array_intersect_key( $allowed, array_flip( self::INLINE ) );
 		} else {
 			unset( $allowed['img'], $allowed['video'], $allowed['audio'], $allowed['source'], $allowed['track'], $allowed['area'], $allowed['map'], $allowed['form'], $allowed['button'], $allowed['input'], $allowed['textarea'], $allowed['select'], $allowed['option'] );
+		}
+		if ( $own_images && 'heading' !== $context ) {
+			// 1.3.19 (Elementor texts only; the caller has checked every src / srcset is this site's): plain image attributes.
+			$allowed['img'] = array_intersect_key( $img, array_flip( array( 'src', 'srcset', 'sizes', 'alt', 'title', 'width', 'height', 'class', 'loading', 'style' ) ) );
 		}
 		// 1.3.7: WordPress' CSS filter drops every value with «(», so Gutenberg's own text-colour format
 		// <mark style="background-color:rgba(0, 0, 0, 0);color:#hex" class="has-inline-color"> lost its transparent background and
@@ -170,10 +176,7 @@ final class DesignText {
 			return new WP_Error( 'addsynapse_assistant_content_url', 'Invalid link: use a relative path (/shop/…) or a full http(s) address.' );
 		}
 		if ( preg_match( '#^(/(?!/)|\#|\?)#', $url ) ) {
-			return array(
-				'url'      => $url,
-				'external' => false,
-			);
+			return self::own( $url, false );
 		}
 		$parts = wp_parse_url( $url );
 		if ( ! is_array( $parts ) || empty( $parts['host'] ) || ! in_array( strtolower( (string) ( $parts['scheme'] ?? '' ) ), array( 'http', 'https' ), true ) || isset( $parts['user'] ) || isset( $parts['pass'] ) ) {
@@ -182,6 +185,23 @@ final class DesignText {
 		$external = self::host( (string) $parts['host'] ) !== self::host( (string) wp_parse_url( home_url(), PHP_URL_HOST ) );
 		if ( $external && 'https' !== strtolower( (string) $parts['scheme'] ) ) {
 			return new WP_Error( 'addsynapse_assistant_content_url', 'Links to other sites must use https.' );
+		}
+		return self::own( $url, $external );
+	}
+
+	/**
+	 * 1.3.20: a new link into this shop must lead to something that exists (links already in the content pass).
+	 *
+	 * @param string $url      URL.
+	 * @param bool   $external Other site.
+	 * @return array{url:string,external:bool}|WP_Error
+	 */
+	private static function own( string $url, bool $external ) {
+		if ( ! $external ) {
+			$check = \Addsynapse\StoreAssistant\Links\OwnLinks::check( $url );
+			if ( '' !== $check['problem'] ) {
+				return new WP_Error( 'addsynapse_assistant_content_url', $check['problem'] );
+			}
 		}
 		return array(
 			'url'      => $url,

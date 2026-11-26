@@ -735,6 +735,8 @@ final class DesignUnits {
 				return 'The content would be too large.';
 			}
 			// 1.3.14: custom CSS / HTML / attributes new in this document must be exactly what the planner writes.
+			// 1.3.20: links were checked when the draft was made; Approve / Undo never refuse because of a link.
+			\Addsynapse\StoreAssistant\Links\OwnLinks::begin( $expect . "\n" . $set['raw'] );
 			$problem = ElementorCode::tree_problem( $expect, $set['raw'] );
 			if ( '' !== $problem ) {
 				return $problem;

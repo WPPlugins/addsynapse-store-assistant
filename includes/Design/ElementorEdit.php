@@ -50,6 +50,7 @@ final class ElementorEdit extends Planner {
 			return new WP_Error( 'addsynapse_assistant_design_ops', sprintf( 'Give 1 to %d operations per plan (one document per plan).', self::MAX_OPS ) );
 		}
 		$raw = (string) $doc['raw'];
+		\Addsynapse\StoreAssistant\Links\OwnLinks::remember( $raw );
 		try {
 			$tree = new ElementorDoc( $raw, self::$random );
 		} catch ( \RuntimeException $e ) {

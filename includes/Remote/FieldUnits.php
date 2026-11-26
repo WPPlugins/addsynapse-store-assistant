@@ -10,6 +10,7 @@
  *  - post: a NEW post or page (id 0 → created on Approve, as a draft or published, marked as ours). Undo moves exactly
  *    that post to the trash (never deletes it for good), and only a post this plugin created.
  *  - product_new (1.3.11): a NEW simple product, created on Approve and trashed on Undo (see ProductCreate).
+ *  - order_new (1.3.18): a NEW WooCommerce order, created on Approve, cancelled and trashed on Undo (see OrderCreate).
  *
  * @package Addsynapse\StoreAssistant
  */
@@ -25,7 +26,7 @@ defined( 'ABSPATH' ) || exit;
  */
 final class FieldUnits {
 
-	public const KINDS = array( 'product_meta', 'media_text', 'post', 'product_text', ProductCreate::KIND );
+	public const KINDS = array( 'product_meta', 'media_text', 'post', 'product_text', ProductCreate::KIND, OrderCreate::KIND );
 
 	public const TEXT_FIELDS = array( 'name', 'description', 'short_description' );
 	public const MAX_NAME    = 400;
@@ -242,6 +243,15 @@ final class FieldUnits {
 		if ( ProductCreate::KIND === $kind ) {
 			return ProductCreate::read( $id );
 		}
+		if ( OrderCreate::KIND === $kind ) {
+			return function_exists( 'wc_get_order' ) ? OrderCreate::read( $id ) : array(
+				'kind'   => $kind,
+				'id'     => $id,
+				'exists' => false,
+				'reason' => 'WooCommerce is not active on this site.',
+				'values' => array(),
+			);
+		}
 		if ( 'product_meta' === $kind ) {
 			$post = self::product_post( $id );
 			if ( null === $post ) {
@@ -313,6 +323,9 @@ final class FieldUnits {
 		if ( ProductCreate::KIND === $kind ) {
 			return ProductCreate::holds( $now, $expect );
 		}
+		if ( OrderCreate::KIND === $kind ) {
+			return OrderCreate::holds( $now, $expect );
+		}
 		if ( 'post' === $kind ) {
 			return ! isset( $expect['type'] ) || ( $now['type'] ?? null ) === $expect['type'];
 		}
@@ -343,6 +356,9 @@ final class FieldUnits {
 		}
 		if ( ProductCreate::KIND === $kind ) {
 			return ProductCreate::invalid( $set );
+		}
+		if ( OrderCreate::KIND === $kind ) {
+			return OrderCreate::invalid( $set );
 		}
 		if ( 'product_meta' === $kind ) {
 			if ( count( $set ) > 50 ) {
@@ -440,6 +456,9 @@ final class FieldUnits {
 		if ( ProductCreate::KIND === $kind ) {
 			return ProductCreate::problem( $id, $expect, $set );
 		}
+		if ( OrderCreate::KIND === $kind ) {
+			return OrderCreate::problem( $id, $expect, $set );
+		}
 		if ( null !== $set ) {
 			$invalid = self::invalid( $kind, $set );
 			if ( '' !== $invalid ) {
@@ -496,6 +515,9 @@ final class FieldUnits {
 	public static function write( string $kind, int $id, ?array $set, string $changeset, bool $undo = false ): int {
 		if ( ProductCreate::KIND === $kind ) {
 			return ProductCreate::write( $id, $set, $changeset );
+		}
+		if ( OrderCreate::KIND === $kind ) {
+			return OrderCreate::write( $id, $set, $changeset );
 		}
 		if ( 'product_text' === $kind ) {
 			$product = self::text_product( $id );
@@ -607,6 +629,14 @@ final class FieldUnits {
 	public static function for_log( $values ) {
 		if ( ! is_array( $values ) ) {
 			return $values;
+		}
+		if ( isset( $values['lines'], $values['totals'] ) ) {
+			// order_new (1.3.18): the approval log never keeps the customer's name, email, phone, address or note.
+			return array(
+				'lines'  => is_array( $values['lines'] ) ? count( $values['lines'] ) : 0,
+				'status' => (string) ( $values['status'] ?? '' ),
+				'total'  => (string) ( $values['totals']['total'] ?? '' ),
+			);
 		}
 		foreach ( $values as $field => $value ) {
 			if ( is_string( $value ) && mb_strlen( $value ) > 120 ) {

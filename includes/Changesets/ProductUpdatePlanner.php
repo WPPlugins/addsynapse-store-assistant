@@ -79,6 +79,15 @@ final class ProductUpdatePlanner extends Planner {
 		$unchanged = 0;
 		foreach ( $selected['products'] as $product ) {
 			$type = ProductSelector::object_type( $product );
+			// 1.3.20: a new link into the shop in a description must lead to something that exists.
+			foreach ( array( 'short_description', 'description' ) as $field ) {
+				if ( isset( $changes[ $field ] ) && is_string( $changes[ $field ] ) && $product instanceof \WC_Product ) {
+					$problem = \Addsynapse\StoreAssistant\Links\OwnLinks::html_problem( $changes[ $field ], 'description' === $field ? (string) $product->get_description( 'edit' ) : (string) $product->get_short_description( 'edit' ) );
+					if ( '' !== $problem ) {
+						return new WP_Error( 'addsynapse_assistant_invalid_value', 'set.' . $field . ': ' . $problem );
+					}
+				}
+			}
 			if ( 'variation' === $type && ( array_diff( array_keys( $changes ), array( 'description' ) ) || isset( $images['gallery_add'] ) ) ) {
 				$skipped[] = ProductSelector::skip( $product, 'A variation has only its own description and main image here; its name and gallery come from the parent product.' );
 				continue;

@@ -189,12 +189,38 @@ final class DesignAbilities {
 		if ( null === $class ) {
 			return new \WP_Error( 'addsynapse_assistant_design_tool', 'This design tool is not available on this site.' );
 		}
+		\Addsynapse\StoreAssistant\Links\OwnLinks::begin();
 		$result = ( new $class() )->plan( (array) ( $input['args'] ?? array() ), get_current_user_id() );
 		if ( is_wp_error( $result ) ) {
 			return $result;
 		}
-		$result['units'] = DesignUnits::from_lines( (array) ( $result['lines'] ?? array() ) );
+		$result['units'] = self::with_links( DesignUnits::from_lines( (array) ( $result['lines'] ?? array() ) ) );
 		unset( $result['lines'] );
 		return $result;
+	}
+
+	/**
+	 * 1.3.20: the card shows the real address of every new link into the shop (checked: it exists).
+	 *
+	 * @param array<int,array<string,mixed>> $units Units.
+	 * @return array<int,array<string,mixed>>
+	 */
+	public static function with_links( array $units ): array {
+		$used = \Addsynapse\StoreAssistant\Links\OwnLinks::used();
+		if ( ! $units || ! $used ) {
+			return $units;
+		}
+		$unverified = \Addsynapse\StoreAssistant\Links\OwnLinks::unverified();
+		$drafts     = \Addsynapse\StoreAssistant\Links\OwnLinks::drafts();
+		$rows       = (array) ( $units[0]['preview'] ?? array() );
+		foreach ( array_slice( $used, 0, 20, true ) as $url => $label ) {
+			$rows[] = array(
+				'field'  => '' !== $label ? 'link: ' . $label : 'link',
+				'before' => '',
+				'after'  => (string) $url . ( in_array( (string) $url, $drafts, true ) ? ' (not published yet: visitors get «page not found» until it is)' : ( in_array( (string) $url, $unverified, true ) ? ' (not checked: the site did not answer itself)' : '' ) ),
+			);
+		}
+		$units[0]['preview'] = $rows;
+		return $units;
 	}
 }

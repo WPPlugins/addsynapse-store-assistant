@@ -2,11 +2,11 @@
 Contributors: sakkoulas
 Tags: chatgpt, claude, ai agent, woocommerce ai, product management
 Requires at least: 6.9
-Tested up to: 7.1
+Tested up to: 7.2
 Requires PHP: 7.4
 WC requires at least: 8.0
 WC tested up to: 11.1
-Stable tag: 1.3.17
+Stable tag: 1.3.20
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -222,7 +222,7 @@ With an account, at most daily while a user opens the plugin's screens, it fetch
 
 The connection, started from your AI app, opens this plugin's page. For a logged-in administrator only, it asks which account started it (`POST https://api.addsynapse.com/api/v1/assistant/relay-claim/preview`: one-time code and site address; answer: account name and masked email). Only on **Connect** does the plugin create a random connection key, acting as you, and send it once over HTTPS (`POST https://api.addsynapse.com/api/v1/assistant/relay-claim`: key, user name, site address, one-time code — never in a web address); Cancel creates nothing. The site keeps only a keyed hash; unused within 15 minutes, the key is revoked. Sites connected earlier keep their Application Password until they reconnect.
 
-The key works only on this plugin's `addsynapse-assistant/v1/remote/*` routes over HTTPS (never users, plugins, settings, other routes or XML-RPC). When you ask your AI app, AddSynapse's servers use it to read: site or store name and structure, pages, posts, custom content types, menus and media, products and variations, categories, stock and catalogue reports, sales totals and best sellers (never customer names, emails or addresses), and SEO data. Only after you press Approve (or Undo), with a single-use ticket AddSynapse signs at that moment (Ed25519, valid 5 minutes, bound to this site and the exact values), they write the approved values: pages, posts and custom content (title, excerpt, content, status, template; new posts and pages), menus, featured images, media details (alt text, title, caption, description), the look of the site (styles, templates, theme settings and logo, widgets, Additional CSS, Elementor), measurement codes and, only if you allowed it in Settings, small scripts, SEO titles, meta descriptions and focus keywords, and on WooCommerce stores product names and descriptions, product images (main image and gallery, also of variations; a new image from an https address is downloaded only when you approve), prices, sale prices and stock, categories, tags, brand and attributes, custom fields, new products (also with variations) and coupons. Each write is listed in Settings → Approval log.
+The key works only on this plugin's `addsynapse-assistant/v1/remote/*` routes over HTTPS (never users, plugins, settings, other routes or XML-RPC). When you ask your AI app, AddSynapse's servers use it to read: site or store name and structure, pages, posts, custom content types, menus and media, products and variations, categories, stock and catalogue reports, sales totals and best sellers, orders (when you ask for them: products, totals, status, notes and the customer's name, contact details and addresses, passed to your AI app), and SEO data. A new-order draft keeps the customer details you gave with the draft in your AddSynapse account; the approval log keeps no customer details. Only after you press Approve (or Undo), with a single-use ticket AddSynapse signs at that moment (Ed25519, valid 5 minutes, bound to this site and the exact values), they write the approved values: pages, posts and custom content (title, excerpt, content, status, template; new posts and pages), menus, featured images, media details (alt text, title, caption, description), the look of the site (styles, templates, theme settings and logo, widgets, Additional CSS, Elementor), measurement codes and, only if you allowed it in Settings, small scripts, SEO titles, meta descriptions and focus keywords, and on WooCommerce stores product names and descriptions, product images (main image and gallery, also of variations; a new image from an https address is downloaded only when you approve), prices, sale prices and stock, categories, tags, brand and attributes, custom fields, new products (also with variations), new orders (Undo cancels them and moves them to the trash) and coupons. Each write is listed in Settings → Approval log.
 
 Image from a web address you give: only after Approve, your server downloads that one image from that website (not AddSynapse; https only; private, local and loopback addresses refused, also after redirects; JPG, PNG, WebP or GIF, ≤10 MB, 15 seconds). Undo deletes it while unused.
 
@@ -248,6 +248,20 @@ The plugin sends nothing itself. Only after you approve a measurement code (from
 * TikTok privacy policy: https://www.tiktok.com/legal/page/global/privacy-policy/en
 
 == Changelog ==
+
+= 1.3.20 =
+* Fix: links to your own pages, categories and products are now checked before a draft is shown. A menu item or a header link could get a guessed address (e.g. /product-category/shoes/ on a shop that uses ?product_cat=shoes) that led to a «page not found». Now an address that does not exist on your shop is refused with the right one, a typed address of your own category, page or product becomes a link to that item (WordPress makes its address), and the draft card shows the real address of every new link.
+* Menus can now also link to product tags and post categories.
+* The order list now shows on every order how it ships (shipping method) and whether it is paid.
+
+= 1.3.19 =
+* Fix: Elementor icon boxes, image boxes and every «description» text could not be changed from Claude or ChatGPT (the word «description» was taken for a script). They can now.
+* Elementor texts may now show images of your own media library. Maps can be added as Elementor's Google Maps element (from an address), and the HTML element also accepts Google Maps embeds besides YouTube and Vimeo videos.
+* When a text holds an embed, a style tag or a script, the assistant is told exactly which element does it safely (video, map, HTML element or custom CSS). Scripts and event handlers stay closed.
+
+= 1.3.18 =
+* New: orders from Claude or ChatGPT. Ask «Using AddSynapse, create an order for 2 × Blue Chair for Maria Papadopoulou, Athens, phone …» — the draft shows the products, prices and totals WooCommerce computes (taxes included); the order is created only when you press Approve (pending payment by default, no emails unless you ask). Undo cancels it (stock given back) and moves it to the trash. A customer account is never created.
+* New: Claude or ChatGPT can list your orders (by status, dates, customer email or a search) and open one order with its products, totals, addresses and notes, so you can check an order before and after you create it.
 
 = 1.3.17 =
 * Fix: connecting from Claude or ChatGPT on sites where other plugins make WordPress check the sign-in very early. The connection password AddSynapse receives was not recognised there, so the connection could not be completed. It is now always recognised and limited to this plugin's own routes.
@@ -387,6 +401,15 @@ The plugin sends nothing itself. Only after you approve a measurement code (from
 * First release on WordPress.org: chat in wp-admin, read tools, previews with Approve and Undo for prices, stock, categories, attributes, variations, product details, menus, pages, SEO, orders and coupons, CSV import, 5-day free trial without sign-up, then a free read-only plan; Subscribe from the plugin. Bulk previews show how many questions they count (10 products = 1 question). Slash commands, previews, Approve, Undo, voice input and Show me work for everyone, without a connection or subscription.
 
 == Upgrade Notice ==
+
+= 1.3.20 =
+New links to your own pages, categories and products are checked before the draft: no more «page not found» links in menus and headers.
+
+= 1.3.19 =
+Elementor «description» texts can be changed again; images of your media library in texts; Google Maps element and map embeds.
+
+= 1.3.18 =
+Create orders from Claude or ChatGPT (a draft you approve, Undo cancels it), and list or open your orders there.
 
 = 1.3.17 =
 Fixes connecting on sites where other plugins check the sign-in very early; a connection started in ChatGPT continues after activation.

@@ -259,10 +259,10 @@ class BlockNavigationAdapter implements MenuAdapterInterface {
 		$link = $url;
 		$kind = 'custom';
 		$type = 'custom';
-		if ( 'product_cat' === $object_type ) {
+		if ( in_array( $object_type, \Addsynapse\StoreAssistant\Menus\MenuPlanner::TAXONOMIES, true ) ) {
 			$kind = 'taxonomy';
 			$type = 'taxonomy';
-			$term = get_term_link( $object_id, 'product_cat' );
+			$term = get_term_link( $object_id, $object_type );
 			$link = is_wp_error( $term ) ? '' : (string) $term;
 		} elseif ( in_array( $object_type, array( 'product', 'page', 'post' ), true ) ) {
 			$kind = 'post-type';

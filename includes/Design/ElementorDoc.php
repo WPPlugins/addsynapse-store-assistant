@@ -32,7 +32,7 @@ final class ElementorDoc {
 	/**
 	 * Widgets that may be inserted.
 	 */
-	public const WIDGETS = array( 'heading', 'text-editor', 'button', 'image', 'icon-list', 'spacer', 'divider', 'icon', 'icon-box', 'image-box', 'testimonial', 'star-rating', 'video', 'html' );
+	public const WIDGETS = array( 'heading', 'text-editor', 'button', 'image', 'icon-list', 'spacer', 'divider', 'icon', 'icon-box', 'image-box', 'testimonial', 'star-rating', 'video', 'html', 'google_maps' );
 
 	/**
 	 * Main text setting of a widget (set_text).
@@ -761,6 +761,13 @@ final class ElementorDoc {
 					$element['settings'][ (string) $key ] = $this->clean_value( (string) $key, $value );
 				}
 			}
+			if ( 'google_maps' === ( $element['widgetType'] ?? '' ) ) {
+				// 1.3.19: a map is Elementor's own Google Maps widget — Elementor builds the embed from the address itself.
+				$address = $element['settings']['address'] ?? '';
+				if ( ! is_string( $address ) || '' === trim( $address ) || mb_strlen( $address ) > 300 || preg_match( '/[<>]/', $address ) ) {
+					throw new \InvalidArgumentException( 'A google_maps widget needs "address": a plain place or street address (at most 300 characters), e.g. {"address":"Odos 1, Athens"}; optional "zoom" {"size":14} and "height" {"size":300}.' );
+				}
+			}
 			if ( 'video' === ( $element['widgetType'] ?? '' ) ) {
 				$url = (string) ( $element['settings']['youtube_url'] ?? $element['settings']['vimeo_url'] ?? '' );
 				if ( ! preg_match( '#^https://(www\.)?(youtube\.com|youtu\.be|vimeo\.com)/#', $url ) ) {
@@ -802,6 +809,13 @@ final class ElementorDoc {
 		}
 		if ( '' !== $code && ! is_array( $value ) ) {
 			return ElementorCode::clean( $code, $key, $value, $this->external );
+		}
+		// 1.3.19: code inside a text (an <iframe>, a <style>, a script) → say which element does it safely (customer 159).
+		if ( is_string( $value ) && in_array( $key, self::RICH, true ) ) {
+			$problem = ElementorCode::text_code_problem( $key, $value );
+			if ( '' !== $problem ) {
+				throw new \InvalidArgumentException( esc_html( $problem ) );
+			}
 		}
 		// 1.3.14: long texts (text-editor) up to 20 KB, as rich() allows, instead of the 8,000 bytes of block attributes.
 		$problem = BlockAttrs::value_problem( $value, 0, $key, in_array( $key, self::RICH, true ) ? ElementorCode::MAX : 8000 );
@@ -927,9 +941,19 @@ final class ElementorDoc {
 	 * @throws \InvalidArgumentException When not allowed.
 	 */
 	private function rich( string $text, string $context ): string {
-		$clean = DesignText::rich( $text, $context );
+		// 1.3.19: Elementor texts may hold images of this site (media library); images from elsewhere stay closed.
+		$images = 'text' === $context ? ElementorCode::images_problem( $text ) : '';
+		if ( '' !== $images ) {
+			throw new \InvalidArgumentException( esc_html( $images ) );
+		}
+		$clean = DesignText::rich( $text, $context, 'text' === $context );
 		if ( is_wp_error( $clean ) ) {
 			throw new \InvalidArgumentException( esc_html( $clean->get_error_message() ) );
+		}
+		// Again on what kses kept (attributes rewritten in a normal quoted form): a «>» inside a quoted attribute cannot hide a srcset.
+		$images = 'text' === $context ? ElementorCode::images_problem( $clean['html'] ) : '';
+		if ( '' !== $images ) {
+			throw new \InvalidArgumentException( esc_html( $images ) );
 		}
 		$this->external = array_merge( $this->external, $clean['external'] );
 		return $clean['html'];

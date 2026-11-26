@@ -175,7 +175,7 @@ final class ApplyChangesAbility {
 			self::NAME,
 			array(
 				'label'               => __( 'Apply an approved change set', 'addsynapse-store-assistant' ),
-				'description'         => 'Writes the values of a change set the shop owner approved (or restores them on Undo): price/stock fields of products and variations, SEO title/description/focus keyword, coupons, page/post content and status, featured images, navigation menus, the name, description and short description of products, the main image and gallery of products and variations (also with images the same change set adds from a link), custom fields of products, alt text / title / caption / description of media items, new posts and pages (Undo moves them to the trash), the categories, tags, brand and global attributes of a product (and the terms the change set creates for them), and the look of the site (styles, Additional CSS, theme settings, widgets, templates, Elementor). Refuses everything if anything no longer holds the expected values. A coupon above 50% off is refused here: it is approved in wp-admin (hold-changes).',
+				'description'         => 'Writes the values of a change set the shop owner approved (or restores them on Undo): price/stock fields of products and variations, SEO title/description/focus keyword, coupons, page/post content and status, featured images, navigation menus, the name, description and short description of products, the main image and gallery of products and variations (also with images the same change set adds from a link), new orders (Undo cancels them and moves them to the trash), custom fields of products, alt text / title / caption / description of media items, new posts and pages (Undo moves them to the trash), the categories, tags, brand and global attributes of a product (and the terms the change set creates for them), and the look of the site (styles, Additional CSS, theme settings, widgets, templates, Elementor). Refuses everything if anything no longer holds the expected values. A coupon above 50% off is refused here: it is approved in wp-admin (hold-changes).',
 				'category'            => AbilitiesRegistrar::CATEGORY,
 				'input_schema'        => array(
 					'type'                 => 'object',
@@ -244,6 +244,8 @@ final class ApplyChangesAbility {
 	 * @throws \Throwable When WordPress refuses a design write (the design units written before it are put back first).
 	 */
 	public function execute( $input ) {
+		// 1.3.20: links were checked when the draft was made; Approve / Undo never refuse (or ask the site) because of a link.
+		\Addsynapse\StoreAssistant\Links\OwnLinks::off();
 		$this->action = (string) ( $input['action'] ?? '' );
 		$items        = array_values( (array) $input['items'] );
 		$this->refs   = self::term_refs( $items );
@@ -351,7 +353,7 @@ final class ApplyChangesAbility {
 				$rows[ $index ] = array(
 					'id'   => $id,
 					'kind' => $kind,
-					'name' => ! empty( $before['exists'] ) ? (string) $before['name'] : (string) ( $set['title'] ?? $set['name'] ?? '' ),
+					'name' => ! empty( $before['exists'] ) ? (string) $before['name'] : ( OrderCreate::KIND === $kind ? __( 'New order', 'addsynapse-store-assistant' ) : (string) ( $set['title'] ?? $set['name'] ?? '' ) ),
 					'from' => FieldUnits::for_log( $item['expect'] ),
 					'to'   => null === $set ? 'trash' : FieldUnits::for_log( $set ),
 				);

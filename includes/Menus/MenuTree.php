@@ -243,7 +243,10 @@ final class MenuTree {
 		if ( in_array( 'renamed', $states, true ) ) {
 			$node['title_before'] = $old_title;
 		}
-		if ( 'custom' === $item['type'] ) {
+		if ( '' !== (string) ( $item['link'] ?? '' ) ) {
+			// 1.3.20: the real address of the item (the card shows it).
+			$node['url'] = (string) $item['link'];
+		} elseif ( 'custom' === $item['type'] ) {
 			$node['url'] = (string) $item['url'];
 		}
 		return $node;

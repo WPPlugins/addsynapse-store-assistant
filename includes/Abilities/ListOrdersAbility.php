@@ -198,7 +198,7 @@ final class ListOrdersAbility {
 	 * @param float|null          $max  Max total.
 	 * @return array<string,mixed>
 	 */
-	private static function add_total_filter( array $args, ?float $min, ?float $max ): array {
+	public static function add_total_filter( array $args, ?float $min, ?float $max ): array {
 		if ( null === $min && null === $max ) {
 			return $args;
 		}

@@ -246,7 +246,7 @@ class ClassicMenuAdapter implements MenuAdapterInterface {
 	 */
 	public function new_item( string $object_type, int $object_id, string $url ): array {
 		$type = 'custom';
-		if ( 'product_cat' === $object_type ) {
+		if ( in_array( $object_type, \Addsynapse\StoreAssistant\Menus\MenuPlanner::TAXONOMIES, true ) ) {
 			$type = 'taxonomy';
 		} elseif ( in_array( $object_type, array( 'product', 'page', 'post' ), true ) ) {
 			$type = 'post_type';
